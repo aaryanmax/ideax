@@ -1,0 +1,46 @@
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+*.env
+
+# Machine Learning & Large Geospatial Data (CRITICAL: Do not remove)
+*.tif
+*.tiff
+*.geotiff
+*.jp2
+*.nc
+*.hdf5
+*.h5
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+*.index
+*.faiss
+data/raw/*
+data/processed/*
+data/indices/*
+!data/**/.gitkeep
+
+# Node / Frontend
+node_modules/
+dist/
+.dist/
+*.log
+
+# OS & IDE Specific (Windows / Mac)
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+.idea/
+
+# Local Databases
+*.sqlite3
+*.db
