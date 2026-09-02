@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+faiss-cpu
+rasterio
+shapely
+onnxruntime
+numpy
+sqlalchemy
+python-dotenv

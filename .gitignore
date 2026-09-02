@@ -6,6 +6,7 @@ __pycache__/
 venv/
 ENV/
 *.env
+.env
 
 # Machine Learning & Large Geospatial Data (CRITICAL: Do not remove)
 *.tif
