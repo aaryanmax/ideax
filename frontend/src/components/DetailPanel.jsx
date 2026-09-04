@@ -78,7 +78,7 @@ export default function DetailPanel({
           )}
         </div>
 
-        <SplitSlider before={before?.metadata} after={selected.metadata} />
+        <SplitSlider candidate={selected} before={before?.metadata} after={selected.metadata} />
 
         <dl className="grid grid-cols-2 gap-y-2 font-mono text-[10px]">
           <dt className="text-faint">Projection</dt>

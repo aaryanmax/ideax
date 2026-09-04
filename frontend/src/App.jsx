@@ -55,6 +55,8 @@ export default function App() {
               tile_id: patchId,
               score: feature.properties.similarity_score,
               thumbnail_url: thumbUrl,
+              t1_thumbnail: feature.properties.t1_thumbnail,
+              t2_thumbnail: feature.properties.t2_thumbnail,
               col_off: feature.properties.col_off,
               row_off: feature.properties.row_off,
               metadata: {

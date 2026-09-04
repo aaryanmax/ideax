@@ -32,6 +32,7 @@ class ChangeRequest(BaseModel):
     height: int = 512
     force: bool = False
 
+@router.post("/change")
 @router.post("")
 def analyze_change(request: ChangeRequest):
     if not os.path.exists(t1_path) or not os.path.exists(t2_path):

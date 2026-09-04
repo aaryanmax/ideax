@@ -1,7 +1,3 @@
-from fastapi import APIRouter
+from app.api.v1.router import router
 
-router = APIRouter()
-
-@router.get("/status")
-def status():
-    return {"status": "ok"}
+__all__ = ["router"]

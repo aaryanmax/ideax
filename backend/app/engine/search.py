@@ -1,5 +1,6 @@
 import json
 import os
+import numpy as np
 from typing import List, Dict
 
 class SemanticSearchEngine:
@@ -7,6 +8,8 @@ class SemanticSearchEngine:
         self.embedder = embedder
         self.index_manager = index_manager
         self.metadata = {}
+        self._text_model_512 = None
+        self._tokenizer_512 = None
         if metadata_path and os.path.exists(metadata_path):
             self.load_metadata(metadata_path)
             
@@ -17,53 +20,94 @@ class SemanticSearchEngine:
     def save_metadata(self, metadata_path: str):
         with open(metadata_path, 'w', encoding='utf-8') as f:
             json.dump(self.metadata, f, indent=4)
+
+    def _embed_text_512(self, query: str) -> np.ndarray:
+        if self._text_model_512 is None:
+            from transformers import CLIPTokenizer, CLIPTextModelWithProjection
+            self._tokenizer_512 = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
+            self._text_model_512 = CLIPTextModelWithProjection.from_pretrained("openai/clip-vit-base-patch32")
+            self._text_model_512.eval()
+        
+        inputs = self._tokenizer_512([query], return_tensors="pt", padding=True, truncation=True)
+        import torch
+        with torch.no_grad():
+            outputs = self._text_model_512(**inputs)
+            emb = outputs.text_embeds
+            emb = emb / emb.norm(p=2, dim=-1, keepdim=True)
+        return emb.cpu().numpy()[0]
             
     def search_by_text(self, query: str, top_k: int = 5) -> List[Dict]:
         """
-        1. Encodes text via embedder.embed_text(query).
+        1. Encodes text via embedder.embed_text(query) or 512-dim text model based on index.d.
         2. Runs HNSW vector search.
         3. Resolves and returns top records formatted as GeoJSON-compatible dictionaries with similarity scores.
         """
         if self.index_manager.index.ntotal == 0:
             return []
             
-        # 1. Encode text
-        query_embedding = self.embedder.embed_text(query)
+        index_dim = getattr(self.index_manager.index, "d", self.index_manager.dim)
+        
+        # 1. Encode text matching index dimension
+        if index_dim == 512:
+            query_embedding = self._embed_text_512(query)
+        else:
+            query_embedding = self.embedder.embed_text(query)
+            if query_embedding.shape[-1] != index_dim:
+                if query_embedding.shape[-1] > index_dim:
+                    query_embedding = query_embedding[:index_dim]
+                else:
+                    query_embedding = np.pad(query_embedding, (0, index_dim - query_embedding.shape[-1]))
+                query_embedding = query_embedding / np.linalg.norm(query_embedding)
         
         # 2. Vector search
         distances, indices = self.index_manager.search(query_embedding, top_k=top_k)
         
         # 3. Resolve metadata
         results = []
-        # FAISS search returns a 2D array: (1, top_k)
-        # distances are similarities because we use inner product with normalized vectors
         for score, idx in zip(distances[0], indices[0]):
-            idx_str = str(idx) # JSON keys are always strings
-            if idx_str in self.metadata:
-                record = self.metadata[idx_str]
+            rec_key = str(idx)
+            if rec_key not in self.metadata and f"patch_{idx}" in self.metadata:
+                rec_key = f"patch_{idx}"
+            
+            if rec_key in self.metadata:
+                record = self.metadata[rec_key]
                 
-                # Format as GeoJSON-compatible Feature
-                # bounds: [min_lat, min_lon, max_lat, max_lon]
-                min_lat, min_lon, max_lat, max_lon = record["bounds"]
+                # Extract geometry
+                if "coordinates" in record and record["coordinates"]:
+                    coords = record["coordinates"]
+                elif "bounds" in record and record["bounds"]:
+                    min_lat, min_lon, max_lat, max_lon = record["bounds"]
+                    coords = [[
+                        [min_lon, max_lat],
+                        [max_lon, max_lat],
+                        [max_lon, min_lat],
+                        [min_lon, min_lat],
+                        [min_lon, max_lat]
+                    ]]
+                else:
+                    lat, lon = record.get("center", [28.6, 77.2])
+                    coords = [[
+                        [lon - 0.01, lat - 0.01],
+                        [lon + 0.01, lat - 0.01],
+                        [lon + 0.01, lat + 0.01],
+                        [lon - 0.01, lat + 0.01],
+                        [lon - 0.01, lat - 0.01],
+                    ]]
                 
                 feature = {
                     "type": "Feature",
                     "geometry": {
                         "type": "Polygon",
-                        "coordinates": [[
-                            [min_lon, max_lat], # Top-left
-                            [max_lon, max_lat], # Top-right
-                            [max_lon, min_lat], # Bottom-right
-                            [min_lon, min_lat], # Bottom-left
-                            [min_lon, max_lat]  # Close polygon
-                        ]]
+                        "coordinates": coords
                     },
                     "properties": {
-                        "patch_id": record.get("patch_id", idx_str),
+                        "patch_id": record.get("patch_id", rec_key),
                         "similarity_score": float(score),
                         "center": record.get("center"),
                         "file_path": record.get("file_path"),
-                        "thumbnail_url": record.get("thumbnail_url"),
+                        "thumbnail_url": record.get("t2_thumbnail") or record.get("thumbnail_url"),
+                        "t1_thumbnail": record.get("t1_thumbnail"),
+                        "t2_thumbnail": record.get("t2_thumbnail"),
                         "col_off": record.get("col_off"),
                         "row_off": record.get("row_off")
                     }
