@@ -45,3 +45,9 @@ Desktop.ini
 # Local Databases
 *.sqlite3
 *.db
+
+# Local Info & Developer Files (checkpoints, notes, local dev logs)
+MyLocalFiles/
+[Mm]y[Ll]ocal[Ff]iles/
+*.local.*
+*.local
