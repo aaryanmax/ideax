@@ -8,8 +8,7 @@ from scipy.spatial.distance import cosine
 from app.engine.embedder import Embedder
 from app.engine.gating import evaluate_sfas_change
 from app.engine.tactical import TacticalClassifier
-from app.engine.tiler import extract_change_polygons
-from scripts.test_engine import extract_patch_and_bounds
+from app.engine.tiler import extract_change_polygons, extract_patch_and_bounds
 
 router = APIRouter()
 

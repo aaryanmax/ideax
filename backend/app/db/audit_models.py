@@ -29,9 +29,9 @@ class AuditRecord(Base):
     analyst_rationale = Column(Text, nullable=True)
     extra_metadata = Column(Text, nullable=True)
 
-# Locate audit.db in the project root reliably
+# Locate audit.db in the backend/data directory
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-DB_PATH = os.path.join(BASE_DIR, "audit.db")
+DB_PATH = os.path.join(BASE_DIR, "backend", "data", "audit.db")
 engine = create_engine(f"sqlite:///{DB_PATH}")
 Base.metadata.create_all(engine)
 

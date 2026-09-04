@@ -1,5 +1,5 @@
 import { ChevronRight, GitCommitHorizontal } from "lucide-react";
-import { STATUS_STYLE } from "../lib/format.js";
+import { STATUS_STYLE } from "../../lib/format.js";
 
 export default function CommitLog({ commits }) {
   return (

@@ -1,4 +1,4 @@
-import { swatchColor, verdictFor, VERDICT_STYLE } from "../lib/format.js";
+import { swatchColor, verdictFor, VERDICT_STYLE } from "../../lib/format.js";
 
 export default function CandidateGallery({ results, total, activeCandidateId, onSelect, threshold }) {
   return (

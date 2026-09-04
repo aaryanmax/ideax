@@ -5,6 +5,7 @@ from rasterio.warp import transform as reproject_coords
 from shapely.geometry import Polygon, mapping
 from typing import List, Dict, Any, Optional
 from rasterio.windows import Window
+from rasterio.windows import transform as win_transform_fn
 
 def extract_change_polygons(
     t1_path: str, 
@@ -111,5 +112,52 @@ def extract_change_polygons(
             }
         }
         features.append(feature)
-        
     return features
+
+def extract_patch_and_bounds(raster_path: str, window: Window):
+    """
+    Extracts a spatial patch using rasterio.windows.Window without loading the full raster.
+    Returns the RGB array and EPSG:4326 decimal-degree bounding box coordinates.
+    """
+    with rasterio.open(raster_path) as src:
+        arr = src.read(window=window)
+        crs = src.crs
+        src_transform = src.transform
+        patch_transform = win_transform_fn(window, src_transform)
+
+    # Transpose (C, H, W) to (H, W, C)
+    arr = np.transpose(arr, (1, 2, 0))
+    if arr.dtype != np.uint8:
+        arr = cv2.normalize(arr, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    if arr.shape[2] == 1:
+        arr = cv2.cvtColor(arr, cv2.COLOR_GRAY2RGB)
+    elif arr.shape[2] > 3:
+        arr = arr[:, :, :3]
+
+    # Calculate 4 corners of window in spatial coordinates
+    w, h = int(window.width), int(window.height)
+    corners = [(0, 0), (w, 0), (w, h), (0, h)]
+    spatial_coords = [rasterio.transform.xy(patch_transform, r, c) for c, r in corners]
+    xs = [pt[0] for pt in spatial_coords]
+    ys = [pt[1] for pt in spatial_coords]
+
+    # Reproject to EPSG:4326 (WGS84 Lat/Lon in decimal degrees)
+    if crs and crs.to_string() != "EPSG:4326":
+        try:
+            lons, lats = reproject_coords(crs, "EPSG:4326", xs, ys)
+        except Exception:
+            lons, lats = xs, ys
+    else:
+        lons, lats = xs, ys
+
+    bounds_geo = {
+        "min_lon": min(lons),
+        "max_lon": max(lons),
+        "min_lat": min(lats),
+        "max_lat": max(lats),
+        "top_left": (max(lats), min(lons)),
+        "bottom_right": (min(lats), max(lons)),
+        "patch_transform": patch_transform,
+        "crs": crs
+    }
+    return arr, bounds_geo
