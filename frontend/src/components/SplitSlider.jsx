@@ -1,76 +1,78 @@
-import React, { useState } from 'react';
+import { useCallback, useRef, useState } from "react";
+import { SlidersHorizontal } from "lucide-react";
+import { swatchColor } from "../lib/format.js";
 
-export default function SplitSlider({ candidate, before, after }) {
-  const [sliderPos, setSliderPos] = useState(50);
+const GRID_BG =
+  "repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 1px, transparent 1px, transparent 24px), repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 1px, transparent 1px, transparent 24px)";
 
-  const activeCandidate = candidate || after || before;
-  if (!activeCandidate) return null;
+// Takes two TileMetadata objects — the shape a tile_id_t1 / tile_id_t2
+// pair resolves to once /change is wired up.
+export default function SplitSlider({ before, after }) {
+  const [pos, setPos] = useState(50);
+  const trackRef = useRef(null);
+  const dragging = useRef(false);
 
-  const tileId = activeCandidate.tile_id || activeCandidate.patch_id;
+  const setFromClientX = useCallback((clientX) => {
+    const track = trackRef.current;
+    if (!track) return;
+    const rect = track.getBoundingClientRect();
+    const pct = ((clientX - rect.left) / rect.width) * 100;
+    setPos(Math.min(100, Math.max(0, pct)));
+  }, []);
 
-  const t1Url = activeCandidate.t1_thumbnail 
-    ? (activeCandidate.t1_thumbnail.startsWith("http") 
-        ? activeCandidate.t1_thumbnail 
-        : `http://localhost:8000${activeCandidate.t1_thumbnail}`)
-    : `http://localhost:8000/static/tiles/thumbnails/${tileId}_t1.png`;
-
-  const t2Url = activeCandidate.t2_thumbnail 
-    ? (activeCandidate.t2_thumbnail.startsWith("http") 
-        ? activeCandidate.t2_thumbnail 
-        : `http://localhost:8000${activeCandidate.t2_thumbnail}`)
-    : (activeCandidate.thumbnail_url 
-        ? (activeCandidate.thumbnail_url.startsWith("http") 
-            ? activeCandidate.thumbnail_url 
-            : `http://localhost:8000${activeCandidate.thumbnail_url}`)
-        : `http://localhost:8000/static/tiles/thumbnails/${tileId}_t2.png`);
+  const onPointerDown = (e) => {
+    dragging.current = true;
+    setFromClientX(e.clientX);
+  };
+  const onPointerMove = (e) => {
+    if (!dragging.current) return;
+    setFromClientX(e.clientX);
+  };
+  const endDrag = () => {
+    dragging.current = false;
+  };
 
   return (
-    <div className="relative w-full h-64 bg-zinc-950 rounded border border-zinc-800 overflow-hidden select-none">
-      {/* T2 (After / Aug 2026) Background */}
-      <img
-        src={t2Url}
-        alt="Post-Monsoon (Aug 2026)"
-        className="absolute inset-0 w-full h-full object-cover"
-      />
-      <span className="absolute bottom-2 right-2 z-10 px-2 py-0.5 text-[10px] font-mono bg-black/70 text-emerald-400 rounded">
-        T2: 2026-08-31
-      </span>
-
-      {/* T1 (Before / Feb 2026) Clipped Layer */}
+    <div className="space-y-2">
       <div
-        className="absolute inset-0 overflow-hidden"
-        style={{ width: `${sliderPos}%` }}
+        ref={trackRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerLeave={endDrag}
+        className="relative h-56 w-full cursor-ew-resize select-none overflow-hidden rounded-sm border border-border"
+        style={{ touchAction: "none" }}
       >
-        <img
-          src={t1Url}
-          alt="Dry Season Baseline (Feb 2026)"
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ width: '100%', maxWidth: 'none' }}
-        />
-        <span className="absolute bottom-2 left-2 z-10 px-2 py-0.5 text-[10px] font-mono bg-black/70 text-amber-400 rounded">
-          T1: 2026-02-17
+        {/* AFTER — base layer. Production: <img src={`/tiles/${after.image_path}`} /> */}
+        <div className="absolute inset-0" style={{ backgroundColor: swatchColor(after.tile_id, 1), backgroundImage: GRID_BG }} />
+        <span className="absolute bottom-2 right-2 rounded-sm bg-black/50 px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-ink/80">
+          AFTER · {after.acquisition_date}
         </span>
-      </div>
 
-      {/* Interactive Divider Line */}
-      <div
-        className="absolute top-0 bottom-0 w-0.5 bg-emerald-400 cursor-ew-resize z-20"
-        style={{ left: `${sliderPos}%` }}
-      >
-        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-6 h-6 bg-black border border-emerald-400 rounded-full flex items-center justify-center text-[10px] text-emerald-400">
-          ↔
+        {/* BEFORE — clipped */}
+        <div className="absolute inset-0 overflow-hidden" style={{ width: `${pos}%` }}>
+          <div
+            className="absolute inset-y-0 left-0"
+            style={{
+              width: trackRef.current ? trackRef.current.getBoundingClientRect().width : "100%",
+              backgroundColor: swatchColor(before.tile_id, 0),
+              backgroundImage: GRID_BG,
+            }}
+          />
+          <span className="absolute bottom-2 left-2 rounded-sm bg-black/50 px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-ink/80">
+            BEFORE · {before.acquisition_date}
+          </span>
+        </div>
+
+        <div className="absolute inset-y-0 w-px bg-amber" style={{ left: `${pos}%` }}>
+          <div className="absolute left-1/2 top-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-amber bg-base">
+            <SlidersHorizontal size={12} className="rotate-90 text-amber" />
+          </div>
         </div>
       </div>
-
-      {/* Range Input Overlay */}
-      <input
-        type="range"
-        min="0"
-        max="100"
-        value={sliderPos}
-        onChange={(e) => setSliderPos(Number(e.target.value))}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-30"
-      />
+      <p className="font-mono text-[10px] text-muted">
+        {before.tile_id} → {after.tile_id} · bitemporal delta rendered client-side, no tile leaves the device.
+      </p>
     </div>
   );
 }

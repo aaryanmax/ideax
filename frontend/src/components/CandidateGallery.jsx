@@ -22,28 +22,15 @@ export default function CandidateGallery({ results, total, selectedTileId, onSel
                 active ? "border-amber/60 bg-panelAlt" : "border-border bg-panel hover:border-borderHover"
               }`}
             >
-              <div className="relative h-24 w-full overflow-hidden rounded-sm border border-border bg-zinc-900">
-                {r.thumbnail_url ? (
-                  <img
-                    src={r.thumbnail_url}
-                    alt={r.tile_id}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
-                  />
-                ) : null}
-                <div
-                  className={`h-full w-full ${r.thumbnail_url ? "hidden" : "block"}`}
-                  style={{
-                    backgroundImage: `linear-gradient(120deg, ${swatchColor(r.tile_id, 0)} 0%, ${swatchColor(
-                      r.tile_id,
-                      0
-                    )} 48%, ${swatchColor(r.tile_id, 1)} 52%, ${swatchColor(r.tile_id, 1)} 100%)`,
-                  }}
-                />
-              </div>
+              <div
+                className="h-20 w-full rounded-sm border border-border"
+                style={{
+                  backgroundImage: `linear-gradient(120deg, ${swatchColor(r.tile_id, 0)} 0%, ${swatchColor(
+                    r.tile_id,
+                    0
+                  )} 48%, ${swatchColor(r.tile_id, 1)} 52%, ${swatchColor(r.tile_id, 1)} 100%)`,
+                }}
+              />
               <div className="mt-2 flex items-center justify-between gap-2">
                 <span className="truncate font-mono text-[11px] text-[#B8BFC9]" title={r.tile_id}>
                   {r.tile_id}
