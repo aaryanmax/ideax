@@ -1,0 +1,107 @@
+[
+    {
+        "id": 1,
+        "query": "newly built structures near river",
+        "location": {
+            "latitude": 28.6,
+            "longitude": 77.2
+        },
+        "timestamp": "2026-09-03 13:06:26.147731",
+        "reviewed_at": "2026-09-04 11:26:16.665523",
+        "sensor_type": "Sentinel-2",
+        "confidence_score": 0.95,
+        "patch_id": null,
+        "t1_timestamp": null,
+        "t2_timestamp": null,
+        "t1_image_path": null,
+        "t2_image_path": null,
+        "geojson_polygon": null,
+        "analyst_id": "OFFICER_DELHI_01",
+        "analyst_rationale": "Confirmed military infrastructure change.",
+        "hash": "e8f7a03607876d24be54f33a9171565b2964712fbcd9fc5797e28efe645d870c"
+    },
+    {
+        "id": 3,
+        "query": "newly built structures near river",
+        "location": {
+            "latitude": 28.6,
+            "longitude": 77.2
+        },
+        "timestamp": "2026-09-03 13:11:37.101308",
+        "reviewed_at": null,
+        "sensor_type": "Sentinel-2",
+        "confidence_score": 0.92,
+        "patch_id": null,
+        "t1_timestamp": null,
+        "t2_timestamp": null,
+        "t1_image_path": null,
+        "t2_image_path": null,
+        "geojson_polygon": null,
+        "analyst_id": null,
+        "analyst_rationale": null,
+        "hash": "dc8aaa8807c63e8fce66de1ffc80352eb2509be4284e07cb9cf6168f14384350"
+    },
+    {
+        "id": 4,
+        "query": "newly built structures near river",
+        "location": {
+            "latitude": 28.6,
+            "longitude": 77.2
+        },
+        "timestamp": "2026-09-03 13:15:31.197352",
+        "reviewed_at": "2026-09-04 11:27:01.949547",
+        "sensor_type": "Sentinel-2",
+        "confidence_score": 0.96,
+        "patch_id": null,
+        "t1_timestamp": null,
+        "t2_timestamp": null,
+        "t1_image_path": null,
+        "t2_image_path": null,
+        "geojson_polygon": null,
+        "analyst_id": "COMMANDER_KM",
+        "analyst_rationale": "Confirmed tactical footprint alteration.",
+        "hash": "25c8946cd19a45197284405da2ee9a01144771f50ea6f66c34e6825ae72120de"
+    },
+    {
+        "id": 5,
+        "query": "newly built structures near river",
+        "location": {
+            "latitude": 28.6,
+            "longitude": 77.2
+        },
+        "timestamp": "2026-09-03 13:17:39.037670",
+        "reviewed_at": null,
+        "sensor_type": "Sentinel-2",
+        "confidence_score": 0.92,
+        "patch_id": null,
+        "t1_timestamp": null,
+        "t2_timestamp": null,
+        "t1_image_path": null,
+        "t2_image_path": null,
+        "geojson_polygon": null,
+        "analyst_id": null,
+        "analyst_rationale": null,
+        "hash": "5de69141bd8568540c2bc9f150b9202b29736be30829289c5bedd9341aa9f584"
+    },
+    {
+        "id": 6,
+        "query": "newly built structures near river",
+        "location": {
+            "latitude": 28.6,
+            "longitude": 77.2
+        },
+        "timestamp": "2026-09-03 13:21:09.302781",
+        "reviewed_at": null,
+        "sensor_type": "Sentinel-2",
+        "confidence_score": 0.92,
+        "patch_id": null,
+        "t1_timestamp": null,
+        "t2_timestamp": null,
+        "t1_image_path": null,
+        "t2_image_path": null,
+        "geojson_polygon": null,
+        "analyst_id": null,
+        "analyst_rationale": null,
+        "hash": "e28987fea7263e1b1af0de069ca34cb9c6688c6c2fdc27ed46eeb83f490e2740"
+    }
+]
