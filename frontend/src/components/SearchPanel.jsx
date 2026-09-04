@@ -15,11 +15,17 @@ export default function SearchPanel({
         <label className="font-cond text-xs font-semibold tracking-wide text-muted">Query</label>
         <div className="mt-2 flex items-center gap-2 rounded-sm border border-border bg-panel px-2.5 py-2">
           <Search size={14} className="shrink-0 text-muted" />
-          <input
+          <textarea
+            rows={3}
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+              }
+            }}
             placeholder="describe the change, e.g. new structure near tree line"
-            className="w-full bg-transparent text-sm text-ink placeholder:text-faint outline-none"
+            className="w-full bg-transparent text-sm text-ink placeholder:text-faint outline-none resize-none overflow-y-auto leading-relaxed"
           />
         </div>
         <p className="mt-1.5 font-mono text-[10px] text-faint">natural language or paste a tile_id</p>

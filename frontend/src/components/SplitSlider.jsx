@@ -37,27 +37,22 @@ export default function SplitSlider({ candidate, before, after }) {
       </span>
 
       {/* T1 (Before / Feb 2026) Clipped Layer */}
-      <div
-        className="absolute inset-0 overflow-hidden"
-        style={{ width: `${sliderPos}%` }}
-      >
-        <img
-          src={t1Url}
-          alt="Dry Season Baseline (Feb 2026)"
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ width: '100%', maxWidth: 'none' }}
-        />
-        <span className="absolute bottom-2 left-2 z-10 px-2 py-0.5 text-[10px] font-mono bg-black/70 text-amber-400 rounded">
-          T1: 2026-02-17
-        </span>
-      </div>
+      <img
+        src={t1Url}
+        alt="Dry Season Baseline (Feb 2026)"
+        className="absolute inset-0 w-full h-full object-cover"
+        style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)`, willChange: 'clip-path' }}
+      />
+      <span className="absolute bottom-2 left-2 z-10 px-2 py-0.5 text-[10px] font-mono bg-black/70 text-amber-400 rounded">
+        T1: 2026-02-17
+      </span>
 
       {/* Interactive Divider Line */}
       <div
-        className="absolute top-0 bottom-0 w-0.5 bg-emerald-400 cursor-ew-resize z-20"
+        className="absolute top-0 bottom-0 w-1 bg-emerald-400 cursor-ew-resize z-20 -translate-x-1/2"
         style={{ left: `${sliderPos}%` }}
       >
-        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-6 h-6 bg-black border border-emerald-400 rounded-full flex items-center justify-center text-[10px] text-emerald-400">
+        <div className="absolute top-1/2 left-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 bg-black/50 backdrop-blur-md shadow-lg border-2 border-emerald-400 rounded-full flex items-center justify-center text-xs text-emerald-400">
           ↔
         </div>
       </div>

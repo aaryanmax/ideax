@@ -9,6 +9,7 @@ import { MOCK_COMMITS } from "./data/mockSearchResponse.js";
 
 export default function App() {
   const [query, setQuery] = useState("seasonal crop fields or agricultural land");
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
   const [response, setResponse] = useState({ results: [], n_results: 0, execution_time_ms: 0 });
   const [minConfidence, setMinConfidence] = useState(0);
   const [sensorFilter, setSensorFilter] = useState(null);
@@ -32,11 +33,17 @@ export default function App() {
     fetchAuditLog();
   }, []);
 
-  // Semantic search triggered on query change & mount
+  // Debounce query input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // Semantic search triggered on debounced query change & mount
   useEffect(() => {
     let active = true;
     async function doSearch() {
-      const searchQuery = query || "seasonal crop fields or agricultural land";
+      const searchQuery = debouncedQuery || "seasonal crop fields or agricultural land";
       try {
         const start = performance.now();
         const geojson = await searchTiles(searchQuery, 6);
@@ -93,7 +100,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [query]);
+  }, [debouncedQuery]);
 
   const sensors = useMemo(() => [...new Set(response.results.map((r) => r.metadata.sensor))], [response]);
 
@@ -106,6 +113,25 @@ export default function App() {
   );
 
   const selected = results.find((r) => r.tile_id === selectedTileId) ?? results[0] ?? null;
+
+  // Keyboard navigation for up/down candidate selection
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+      
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const idx = results.findIndex(r => r.tile_id === selected?.tile_id);
+        if (idx >= 0 && idx < results.length - 1) setSelectedTileId(results[idx + 1].tile_id);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const idx = results.findIndex(r => r.tile_id === selected?.tile_id);
+        if (idx > 0) setSelectedTileId(results[idx - 1].tile_id);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [results, selected]);
 
   // Run change detection & tactical SPOTREP classification when selected tile changes
   useEffect(() => {
@@ -186,14 +212,17 @@ export default function App() {
           onSensorFilterChange={setSensorFilter}
         />
 
-        <main className="p-4">
-          <CandidateGallery
-            results={results}
-            total={response.results.length}
-            selectedTileId={selected?.tile_id}
-            onSelect={setSelectedTileId}
-            threshold={minConfidence || 0.5}
-          />
+        <main className="p-4 flex flex-col min-w-0">
+          <div className="flex-1">
+            <CandidateGallery
+              results={results}
+              total={response.results.length}
+              activeCandidateId={selected?.tile_id}
+              onSelect={setSelectedTileId}
+              threshold={minConfidence || 0.5}
+            />
+          </div>
+          
           <CommitLog commits={commits} />
         </main>
 
@@ -205,6 +234,9 @@ export default function App() {
           onReject={() => recordDecision("rejected")}
           activeAnalysis={activeAnalysis}
           onCommitSuccess={fetchAuditLog}
+          candidates={results}
+          totalCandidates={response.results.length}
+          onSelectCandidate={setSelectedTileId}
         />
       </div>
     </div>

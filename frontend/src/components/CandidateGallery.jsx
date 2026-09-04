@@ -1,6 +1,6 @@
 import { swatchColor, verdictFor, VERDICT_STYLE } from "../lib/format.js";
 
-export default function CandidateGallery({ results, total, selectedTileId, onSelect, threshold }) {
+export default function CandidateGallery({ results, total, activeCandidateId, onSelect, threshold }) {
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
@@ -13,13 +13,22 @@ export default function CandidateGallery({ results, total, selectedTileId, onSel
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {results.map((r) => {
           const cv = VERDICT_STYLE[verdictFor(r.score, threshold)];
-          const active = r.tile_id === selectedTileId;
+          const isActive = r.tile_id === activeCandidateId;
+
+          const handleMouseEnter = () => {
+            const t1Url = r.t1_thumbnail ? (r.t1_thumbnail.startsWith("http") ? r.t1_thumbnail : `http://localhost:8000${r.t1_thumbnail}`) : `http://localhost:8000/static/tiles/thumbnails/${r.tile_id}_t1.png`;
+            const t2Url = r.t2_thumbnail ? (r.t2_thumbnail.startsWith("http") ? r.t2_thumbnail : `http://localhost:8000${r.t2_thumbnail}`) : (r.thumbnail_url ? (r.thumbnail_url.startsWith("http") ? r.thumbnail_url : `http://localhost:8000${r.thumbnail_url}`) : `http://localhost:8000/static/tiles/thumbnails/${r.tile_id}_t2.png`);
+            new Image().src = t1Url;
+            new Image().src = t2Url;
+          };
+
           return (
             <button
               key={r.tile_id}
               onClick={() => onSelect(r.tile_id)}
-              className={`rounded-sm border p-3 text-left transition-colors ${
-                active ? "border-amber/60 bg-panelAlt" : "border-border bg-panel hover:border-borderHover"
+              onMouseEnter={handleMouseEnter}
+              className={`rounded-sm bg-panel p-3 text-left transition-all duration-200 cursor-pointer border ${
+                isActive ? 'ring-2 ring-emerald-500 border-transparent shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'border-zinc-800 hover:border-zinc-600'
               }`}
             >
               <div className="relative h-24 w-full overflow-hidden rounded-sm border border-border bg-zinc-900">
