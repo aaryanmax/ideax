@@ -1,24 +1,62 @@
 import { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { verdictFor, VERDICT_STYLE } from "../../lib/format.js";
 
-function MapUpdater({ activeLocation }) {
+import { useState } from "react";
+import { MapPin } from "lucide-react";
+
+function MapInterface({ activeLocation, onDatasetFilterChange }) {
   const map = useMap();
+  const [autoPan, setAutoPan] = useState(true);
+
   useEffect(() => {
     // Force a resize check just in case the container size wasn't ready on first mount
     const timer = setTimeout(() => {
       map.invalidateSize();
     }, 250);
-    
-    if (activeLocation) {
+    return () => clearTimeout(timer);
+  }, [map]);
+
+  useEffect(() => {
+    if (activeLocation && autoPan) {
       map.flyTo(activeLocation, 13, { animate: true });
     }
-    return () => clearTimeout(timer);
-  }, [activeLocation, map]);
-  return null;
+  }, [activeLocation, map, autoPan]);
+
+  useMapEvents({
+    dragstart: () => {
+      setAutoPan(false);
+    }
+  });
+
+  const handleFetchHere = () => {
+    const center = map.getCenter();
+    setAutoPan(true); // Re-enable autopan for the upcoming results
+    if (onDatasetFilterChange) {
+      if (center.lat < 23) {
+        onDatasetFilterChange("mumbai");
+      } else {
+        onDatasetFilterChange("delhi");
+      }
+    }
+  };
+
+  if (autoPan) return null;
+
+  return (
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[400]">
+      <button 
+        onClick={handleFetchHere}
+        className="flex items-center gap-2 bg-ink text-base px-3 py-1.5 rounded-full shadow-lg border border-border text-xs font-cond tracking-wide hover:bg-panel transition-colors"
+      >
+        <MapPin size={14} className="text-emerald-400" />
+        Fetch Here
+      </button>
+    </div>
+  );
 }
 
 export default function TacticalMap({ 
@@ -31,7 +69,8 @@ export default function TacticalMap({
   style = {},
   hideHeader = false,
   isExpanded = false,
-  onToggleExpand
+  onToggleExpand,
+  onDatasetFilterChange
 }) {
   const activeCandidate = candidates.find(c => c.tile_id === activeCandidateId);
   const activeLocation = activeCandidate 
@@ -61,14 +100,29 @@ export default function TacticalMap({
             const size = isActive ? 18 : 12;
             const glowClass = isActive ? "animate-pulse" : "";
             
+            let dotColor = cv.dot;
+            let borderColor = 'rgba(255,255,255,0.3)';
+            let glow = '4px rgba(0,0,0,0.5)';
+            if (candidate.cluster_id !== undefined) {
+              if (candidate.cluster_id === 0) dotColor = '#34d399';
+              else if (candidate.cluster_id === 1) dotColor = '#22d3ee';
+              else if (candidate.cluster_id === -1) { dotColor = 'rgba(245, 158, 11, 0.3)'; borderColor = '#f59e0b'; }
+              else dotColor = '#818cf8';
+            }
+            if (isActive) {
+               dotColor = '#10b981';
+               borderColor = 'white';
+               glow = '15px 5px rgba(16,185,129,0.6)';
+            }
+            
             const html = `
               <div class="${glowClass}" style="
-                background-color: ${isActive ? '#10b981' : cv.dot};
+                background-color: ${dotColor};
                 width: ${size}px;
                 height: ${size}px;
                 border-radius: 50%;
-                border: 2px solid ${isActive ? 'white' : 'rgba(255,255,255,0.3)'};
-                box-shadow: 0 0 ${isActive ? '15px 5px rgba(16,185,129,0.6)' : '4px rgba(0,0,0,0.5)'};
+                border: 2px solid ${borderColor};
+                box-shadow: 0 0 ${glow};
                 transition: all 0.2s ease-in-out;
               "></div>
             `;
@@ -91,7 +145,7 @@ export default function TacticalMap({
               />
             );
           })}
-          <MapUpdater activeLocation={activeLocation} />
+          <MapInterface activeLocation={activeLocation} onDatasetFilterChange={onDatasetFilterChange} />
         </MapContainer>
         
         {onToggleExpand && (

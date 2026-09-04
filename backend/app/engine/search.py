@@ -115,3 +115,90 @@ class SemanticSearchEngine:
                 results.append(feature)
         
         return results
+
+    def find_similar_by_patch_id(self, patch_id: str, top_k: int = 6) -> List[Dict]:
+        """
+        Retrieves top_k similar patches excluding the source itself.
+        """
+        # Defensive lookup: matches patch_id to dict values
+        if isinstance(self.metadata, dict):
+            idx = next((i for i, item in enumerate(self.metadata.values()) if item.get("patch_id") == patch_id), None)
+        else:
+            idx = next((i for i, item in enumerate(self.metadata) if item.get("patch_id") == patch_id), None)
+            
+        if idx is None:
+            # Fallback to string split if metadata lookup fails
+            try:
+                idx = int(patch_id.split("_")[-1])
+            except ValueError:
+                return []
+                
+        # Read the embedding directly from FAISS index
+        try:
+            vector = self.index_manager.index.reconstruct(idx)
+        except Exception:
+            return []
+            
+        vector = vector / np.linalg.norm(vector)
+            
+        # Query FAISS
+        # Request top_k + 1 to account for the seed patch itself
+        distances, indices = self.index_manager.search(vector, top_k=top_k + 1)
+        
+        results = []
+        for score, res_idx in zip(distances[0], indices[0]):
+            rec_key = str(res_idx)
+            if rec_key not in self.metadata and f"patch_{res_idx}" in self.metadata:
+                rec_key = f"patch_{res_idx}"
+                
+            if rec_key in self.metadata:
+                record = self.metadata[rec_key]
+                if record.get("patch_id", rec_key) == patch_id:
+                    continue  # exclude the source patch
+                    
+                # Extract geometry
+                if "coordinates" in record and record["coordinates"]:
+                    coords = record["coordinates"]
+                elif "bounds" in record and record["bounds"]:
+                    min_lat, min_lon, max_lat, max_lon = record["bounds"]
+                    coords = [[
+                        [min_lon, max_lat],
+                        [max_lon, max_lat],
+                        [max_lon, min_lat],
+                        [min_lon, min_lat],
+                        [min_lon, max_lat]
+                    ]]
+                else:
+                    lat, lon = record.get("center", [28.6, 77.2])
+                    coords = [[
+                        [lon - 0.01, lat - 0.01],
+                        [lon + 0.01, lat - 0.01],
+                        [lon + 0.01, lat + 0.01],
+                        [lon - 0.01, lat + 0.01],
+                        [lon - 0.01, lat - 0.01],
+                    ]]
+                
+                feature = {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": coords
+                    },
+                    "properties": {
+                        "patch_id": record.get("patch_id", rec_key),
+                        "similarity_score": float(score),
+                        "center": record.get("center"),
+                        "file_path": record.get("file_path"),
+                        "thumbnail_url": record.get("t2_thumbnail") or record.get("thumbnail_url"),
+                        "t1_thumbnail": record.get("t1_thumbnail"),
+                        "t2_thumbnail": record.get("t2_thumbnail"),
+                        "col_off": record.get("col_off"),
+                        "row_off": record.get("row_off")
+                    }
+                }
+                results.append(feature)
+                
+            if len(results) >= top_k:
+                break
+                
+        return results

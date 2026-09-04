@@ -1,4 +1,5 @@
 import { Search, Satellite } from "lucide-react";
+import { useRef, useEffect } from "react";
 
 export default function SearchPanel({
   query,
@@ -8,15 +9,43 @@ export default function SearchPanel({
   sensors,
   sensorFilter,
   onSensorFilterChange,
+  datasetFilter,
+  onDatasetFilterChange,
 }) {
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
+    }
+  }, [query]);
+
   return (
-    <aside className="border-b border-border p-4 space-y-6 lg:border-b-0 lg:border-r">
+    <aside className="tour-search border-b border-border p-4 space-y-6 lg:border-b-0 lg:border-r">
+      <div>
+        <label className="font-cond text-xs font-semibold tracking-wide text-muted">Dataset / Region</label>
+        <div className="mt-2">
+          <select
+            value={datasetFilter}
+            onChange={(e) => onDatasetFilterChange(e.target.value)}
+            className="w-full rounded-sm border border-border bg-panel px-2.5 py-2 font-mono text-xs text-ink outline-none transition-colors hover:border-borderHover focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50"
+          >
+            <option value="none">Auto (Map View)</option>
+            <option value="all">All India</option>
+            <option value="delhi">Delhi, NCR</option>
+            <option value="mumbai">Mumbai, MH</option>
+          </select>
+        </div>
+      </div>
+
       <div>
         <label className="font-cond text-xs font-semibold tracking-wide text-muted">Query</label>
         <div className="mt-2 flex items-center gap-2 rounded-sm border border-border bg-panel px-2.5 py-2">
           <Search size={14} className="shrink-0 text-muted" />
           <textarea
-            rows={3}
+            ref={textareaRef}
+            rows={1}
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             onKeyDown={(e) => {
@@ -25,7 +54,7 @@ export default function SearchPanel({
               }
             }}
             placeholder="describe the change, e.g. new structure near tree line"
-            className="w-full bg-transparent text-sm text-ink placeholder:text-faint outline-none resize-none overflow-y-auto leading-relaxed"
+            className="w-full bg-transparent text-sm text-ink placeholder:text-faint outline-none resize-none overflow-hidden leading-relaxed"
           />
         </div>
         <p className="mt-1.5 font-mono text-[10px] text-faint">natural language or paste a tile_id</p>

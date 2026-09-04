@@ -25,7 +25,7 @@ export default function SplitSlider({ candidate, before, after }) {
         : `http://localhost:8000/static/tiles/thumbnails/${tileId}_t2.png`);
 
   return (
-    <div className="relative w-full h-64 bg-zinc-950 rounded border border-zinc-800 overflow-hidden select-none">
+    <div className="tour-viewer relative w-full h-64 bg-zinc-950 rounded border border-zinc-800 overflow-hidden select-none">
       {/* T2 (After / Aug 2026) Background */}
       <img
         src={t2Url}

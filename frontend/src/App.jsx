@@ -4,7 +4,10 @@ import SearchPanel from "./components/SearchPanel.jsx";
 import CandidateGallery from "./components/CandidateGallery.jsx";
 import CommitLog from "./components/CommitLog.jsx";
 import DetailPanel from "./components/DetailPanel.jsx";
-import { searchTiles, analyzeChange, getAuditLog } from "./lib/api.js";
+import { X } from "lucide-react";
+import { searchTiles, analyzeChange, getAuditLog, findSimilarSites } from "./lib/api.js";
+import { triggerHaptic } from "./lib/haptics.js";
+import FieldManualTour from "./components/workflow/FieldManualTour.jsx";
 import { MOCK_COMMITS } from "./data/mockSearchResponse.js";
 
 export default function App() {
@@ -13,9 +16,13 @@ export default function App() {
   const [response, setResponse] = useState({ results: [], n_results: 0, execution_time_ms: 0 });
   const [minConfidence, setMinConfidence] = useState(0);
   const [sensorFilter, setSensorFilter] = useState(null);
+  const [datasetFilter, setDatasetFilter] = useState("none");
   const [selectedTileId, setSelectedTileId] = useState(null);
   const [commits, setCommits] = useState(MOCK_COMMITS);
   const [activeAnalysis, setActiveAnalysis] = useState(null);
+  const [runTour, setRunTour] = useState(false);
+  const [discoverySummary, setDiscoverySummary] = useState(null);
+  const [isDiscovering, setIsDiscovering] = useState(false);
 
   // Fetch initial audit log records on mount
   const fetchAuditLog = async () => {
@@ -39,14 +46,14 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Semantic search triggered on debounced query change & mount
+  // Semantic search triggered on debounced query change, datasetFilter & mount
   useEffect(() => {
     let active = true;
     async function doSearch() {
       const searchQuery = debouncedQuery || "seasonal crop fields or agricultural land";
       try {
         const start = performance.now();
-        const geojson = await searchTiles(searchQuery, 6);
+        const geojson = await searchTiles(searchQuery, 6, datasetFilter);
         const execTime = performance.now() - start;
         if (!active) return;
 
@@ -100,7 +107,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [debouncedQuery]);
+  }, [debouncedQuery, datasetFilter]);
 
   const sensors = useMemo(() => [...new Set(response.results.map((r) => r.metadata.sensor))], [response]);
 
@@ -121,10 +128,12 @@ export default function App() {
       
       if (e.key === 'ArrowDown') {
         e.preventDefault();
+        triggerHaptic('scan');
         const idx = results.findIndex(r => r.tile_id === selected?.tile_id);
         if (idx >= 0 && idx < results.length - 1) setSelectedTileId(results[idx + 1].tile_id);
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
+        triggerHaptic('scan');
         const idx = results.findIndex(r => r.tile_id === selected?.tile_id);
         if (idx > 0) setSelectedTileId(results[idx - 1].tile_id);
       }
@@ -197,9 +206,60 @@ export default function App() {
     ]);
   }
 
+  const handleDiscoverPattern = async (patchId) => {
+    setIsDiscovering(true);
+    setDiscoverySummary(null);
+    try {
+      const data = await findSimilarSites(patchId);
+      
+      const transformed = data.features.map((feature, idx) => {
+        const pId = feature.properties.patch_id || `patch_${idx}`;
+        const rawThumb = feature.properties.thumbnail_url;
+        const thumbUrl = rawThumb
+          ? (rawThumb.startsWith("http") ? rawThumb : `http://localhost:8000${rawThumb}`)
+          : `http://localhost:8000/static/tiles/thumbnails/${pId}.png`;
+
+        return {
+          tile_id: pId,
+          score: feature.properties.similarity_score,
+          thumbnail_url: thumbUrl,
+          t1_thumbnail: feature.properties.t1_thumbnail,
+          t2_thumbnail: feature.properties.t2_thumbnail,
+          col_off: feature.properties.col_off,
+          row_off: feature.properties.row_off,
+          cluster_id: feature.properties.cluster_id,
+          cluster_callsign: feature.properties.cluster_callsign,
+          metadata: {
+            latitude: feature.properties.center ? feature.properties.center[0] : 28.536,
+            longitude: feature.properties.center ? feature.properties.center[1] : 76.457,
+            acquisition_date: "2026-08-31",
+            sensor: "Sentinel-2 L2A",
+            cloud_cover_pct: 0,
+          },
+          coordinates: feature.geometry?.coordinates,
+          verified: feature.properties.similarity_score > 0.20,
+        };
+      });
+
+      setResponse(prev => ({
+        ...prev,
+        results: transformed,
+        n_results: transformed.length,
+      }));
+      setDiscoverySummary(data.tactical_summary);
+      triggerHaptic('scan');
+      if (transformed.length > 0) setSelectedTileId(transformed[0].tile_id);
+    } catch (err) {
+      console.error("Discovery error:", err);
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-base text-ink">
-      <Header nResults={response.n_results} executionMs={response.execution_time_ms} />
+      <FieldManualTour run={runTour} setRun={setRunTour} />
+      <Header nResults={response.n_results} executionMs={response.execution_time_ms} onStartTour={() => setRunTour(true)} />
 
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_320px]">
         <SearchPanel
@@ -210,9 +270,29 @@ export default function App() {
           sensors={sensors}
           sensorFilter={sensorFilter}
           onSensorFilterChange={setSensorFilter}
+          datasetFilter={datasetFilter}
+          onDatasetFilterChange={setDatasetFilter}
         />
 
         <main className="p-4 flex flex-col min-w-0">
+          {discoverySummary && (
+            <div className="mb-4 flex items-center justify-between rounded border border-emerald-500/50 bg-emerald-950/40 px-4 py-3 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-900/80 text-emerald-400">
+                  <span className="text-sm font-bold">✓</span>
+                </div>
+                <p className="font-mono text-xs font-medium tracking-wide text-emerald-300">
+                  {discoverySummary}
+                </p>
+              </div>
+              <button 
+                onClick={() => setDiscoverySummary(null)}
+                className="text-emerald-500/70 hover:text-emerald-400"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
           <div className="flex-1">
             <CandidateGallery
               results={results}
@@ -237,6 +317,9 @@ export default function App() {
           candidates={results}
           totalCandidates={response.results.length}
           onSelectCandidate={setSelectedTileId}
+          onDiscoverPattern={handleDiscoverPattern}
+          isDiscovering={isDiscovering}
+          onDatasetFilterChange={setDatasetFilter}
         />
       </div>
     </div>

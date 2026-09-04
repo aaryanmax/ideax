@@ -3,6 +3,7 @@ import { Check, ShieldAlert, ShieldCheck, X, Loader2 } from "lucide-react";
 import SplitSlider from "./SplitSlider.jsx";
 import { verdictFor, VERDICT_STYLE } from "../lib/format.js";
 import { commitTarget } from "../lib/api.js";
+import { triggerHaptic } from "../lib/haptics.js";
 import TacticalMap from "./viewer/TacticalMap.jsx";
 
 export default function DetailPanel({
@@ -15,7 +16,10 @@ export default function DetailPanel({
   onCommitSuccess,
   candidates,
   totalCandidates,
-  onSelectCandidate
+  onSelectCandidate,
+  onDiscoverPattern,
+  isDiscovering,
+  onDatasetFilterChange
 }) {
   const [isCommitting, setIsCommitting] = useState(false);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
@@ -26,9 +30,11 @@ export default function DetailPanel({
       
       if (e.key === 'Enter' && selected && !isCommitting) {
         e.preventDefault();
+        triggerHaptic('approve');
         handleDecision('APPROVED');
       } else if (e.key === 'Backspace' && selected && !isCommitting) {
         e.preventDefault();
+        triggerHaptic('reject');
         handleDecision('REJECTED');
       }
     };
@@ -40,10 +46,10 @@ export default function DetailPanel({
     return (
       <aside className="border-t border-border p-4 lg:border-l lg:border-t-0 min-h-full">
         <div className="flex flex-col items-center justify-center h-full text-zinc-600 space-y-4">
-          <div className="w-16 h-16 border border-zinc-700 rounded-full flex items-center justify-center animate-pulse">
+          <div className="tour-viewer w-16 h-16 border border-zinc-700 rounded-full flex items-center justify-center animate-pulse">
             <span className="text-2xl">⌖</span>
           </div>
-          <p className="text-xs font-mono uppercase tracking-widest text-center">Awaiting Sector Selection</p>
+          <p className="tour-spotrep text-xs font-mono uppercase tracking-widest text-center">Awaiting Sector Selection</p>
         </div>
       </aside>
     );
@@ -123,6 +129,7 @@ export default function DetailPanel({
             hideHeader={true}
             isExpanded={false}
             onToggleExpand={() => setIsMapExpanded(true)}
+            onDatasetFilterChange={onDatasetFilterChange}
           />
           <div className="absolute top-1 left-1 px-1 text-[9px] font-mono text-zinc-400 uppercase tracking-widest z-[400] pointer-events-none drop-shadow-md bg-black/40 rounded">
             Sector {selected.tile_id.split('_')[1] || '01'}
@@ -144,9 +151,17 @@ export default function DetailPanel({
           <dd className="text-right text-amber">{selected.score.toFixed(2)}</dd>
         </dl>
 
+        <button
+          onClick={() => onDiscoverPattern(selected.tile_id)}
+          disabled={isDiscovering}
+          className="w-full mt-3 py-2 px-3 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/60 hover:border-emerald-400 text-emerald-300 hover:text-emerald-100 rounded text-xs font-mono tracking-wider flex items-center justify-center space-x-2 transition-all shadow-[0_0_10px_rgba(16,185,129,0.15)] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span>{isDiscovering ? '⟳ SCANNING AOR...' : '⌕ DISCOVER ANALOGOUS SITES'}</span>
+        </button>
+
         {activeAnalysis ? (
-          activeAnalysis.spotrep && (
-            <div className="mt-4 p-3 bg-zinc-950 border border-emerald-900/60 rounded shadow-inner">
+          activeAnalysis.spotrep ? (
+            <div className="tour-spotrep mt-4 p-3 bg-zinc-950 border border-emerald-900/60 rounded shadow-inner">
               <div className="text-[10px] text-emerald-500 font-bold uppercase mb-1.5 tracking-wider">
                 Generated SPOTREP (DGIS-Standard)
               </div>
@@ -154,9 +169,13 @@ export default function DetailPanel({
                 {activeAnalysis.spotrep}
               </pre>
             </div>
+          ) : (
+            <div className="tour-spotrep mt-4 p-3 bg-zinc-950/50 border border-zinc-800/60 rounded shadow-inner flex items-center justify-center text-zinc-600 font-mono text-xs">
+              NO SPOTREP GENERATED
+            </div>
           )
         ) : (
-          <div className="mt-4 p-3 bg-zinc-950/50 border border-zinc-800/60 rounded shadow-inner animate-pulse">
+          <div className="tour-spotrep mt-4 p-3 bg-zinc-950/50 border border-zinc-800/60 rounded shadow-inner animate-pulse">
             <div className="h-2.5 w-1/2 bg-zinc-800/50 rounded mb-3"></div>
             <div className="space-y-2">
               <div className="h-2 w-full bg-zinc-800/40 rounded"></div>
@@ -170,7 +189,7 @@ export default function DetailPanel({
         <div className="flex gap-2 pt-1">
           <button
             disabled={isCommitting}
-            onClick={() => handleDecision("APPROVED")}
+            onClick={() => { triggerHaptic('approve'); handleDecision("APPROVED"); }}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-sm border border-verified/40 bg-verified/10 py-1.5 font-cond text-xs font-semibold tracking-wide text-verifiedText hover:bg-verified/15 disabled:opacity-50"
           >
             {isCommitting ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
@@ -178,7 +197,7 @@ export default function DetailPanel({
           </button>
           <button
             disabled={isCommitting}
-            onClick={() => handleDecision("REJECTED")}
+            onClick={() => { triggerHaptic('reject'); handleDecision("REJECTED"); }}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-sm border border-danger/40 bg-danger/10 py-1.5 font-cond text-xs font-semibold tracking-wide text-dangerText hover:bg-danger/15 disabled:opacity-50"
           >
             {isCommitting ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}

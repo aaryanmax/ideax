@@ -3,12 +3,12 @@ const API_BASE = "http://localhost:8000/api/v1";
 /**
  * Execute semantic search over satellite patches via FAISS vector index
  */
-export async function searchTiles(query, topK = 6) {
+export async function searchTiles(query, topK = 6, dataset = "all") {
   try {
     const res = await fetch(`${API_BASE}/search/text`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: query.trim(), top_k: topK }),
+      body: JSON.stringify({ query: query.trim(), top_k: topK, dataset }),
     });
     if (!res.ok) throw new Error(`Search failed: ${res.statusText}`);
     return await res.json();
@@ -75,6 +75,30 @@ export async function commitTarget(payload) {
     return await res.json();
   } catch (err) {
     console.error("API error during commitTarget:", err);
+    throw err;
+  }
+}
+
+/**
+ * Image-to-Image Discovery: Find semantically aligned sites matching a baseline patch
+ */
+export async function findSimilarSites(patchId, topK = 6, cluster = true) {
+  try {
+    const res = await fetch(`${API_BASE}/search/similar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        patch_id: patchId,
+        top_k: topK,
+        cluster_results: cluster,
+        eps_km: 15.0,
+        min_samples: 2,
+      }),
+    });
+    if (!res.ok) throw new Error(`Discovery failed: ${res.statusText}`);
+    return await res.json();
+  } catch (err) {
+    console.error("API error during findSimilarSites:", err);
     throw err;
   }
 }

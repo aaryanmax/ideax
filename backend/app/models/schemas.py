@@ -87,3 +87,23 @@ class AuditRecordOut(BaseModel):
 class AuditLogResponse(BaseModel):
     total: int
     records: List[AuditRecordOut]
+
+class SimilarSearchRequest(BaseModel):
+    patch_id: str
+    top_k: int = 6
+    cluster_results: bool = True
+    eps_km: float = 15.0
+    min_samples: int = 2
+
+class DiscoveryClusterGroup(BaseModel):
+    cluster_id: int
+    callsign: str
+    patch_count: int
+    centroid: List[float]
+
+class DiscoveryResponse(BaseModel):
+    source_patch_id: str
+    total_matches: int
+    features: List[Dict[str, Any]]
+    clusters: List[DiscoveryClusterGroup]
+    tactical_summary: str

@@ -81,3 +81,70 @@ class TileClusterer:
                 break
         
         return results
+
+def cluster_geospatial_features(features: List[Dict], eps_km: float = 15.0, min_samples: int = 2) -> Dict:
+    """
+    Cluster GeoJSON features using DBSCAN over haversine distance.
+    Returns the grouped clusters and mutates features to include `cluster_id` and `cluster_callsign`.
+    """
+    if not features:
+        return {"features": features, "clusters": []}
+        
+    try:
+        from sklearn.cluster import DBSCAN
+    except ImportError:
+        # Fallback if scikit-learn is not installed
+        for feature in features:
+            feature['properties']['cluster_id'] = -1
+            feature['properties']['cluster_callsign'] = "ISOLATED SITE"
+        return {"features": features, "clusters": []}
+    
+    # Extract coordinates in radians [latitude, longitude]
+    coords_rad = np.radians([[f['properties']['center'][0], f['properties']['center'][1]] for f in features])
+    
+    db = DBSCAN(eps=eps_km / 6371.0088, min_samples=min_samples, metric='haversine')
+    labels = db.fit_predict(coords_rad)
+    
+    NATO_ALPHABET = ["ALPHA", "BRAVO", "CHARLIE", "DELTA", "ECHO", "FOXTROT", "GOLF", "HOTEL"]
+    clusters_info = {}
+    
+    for i, feature in enumerate(features):
+        cid = int(labels[i])
+        
+        callsign = f"{NATO_ALPHABET[cid]} CLUSTER" if 0 <= cid < len(NATO_ALPHABET) else f"CLUSTER_{cid}"
+        if cid == -1:
+            callsign = "ISOLATED SITE"
+            
+        feature['properties']['cluster_id'] = cid
+        feature['properties']['cluster_callsign'] = callsign
+        
+        if cid not in clusters_info:
+            clusters_info[cid] = {
+                "cluster_id": cid,
+                "callsign": callsign,
+                "patch_count": 0,
+                "lat_sum": 0.0,
+                "lon_sum": 0.0
+            }
+        
+        clusters_info[cid]["patch_count"] += 1
+        clusters_info[cid]["lat_sum"] += feature['properties']['center'][0]
+        clusters_info[cid]["lon_sum"] += feature['properties']['center'][1]
+        
+    clusters = []
+    for cid, info in clusters_info.items():
+        centroid = [
+            info["lat_sum"] / info["patch_count"],
+            info["lon_sum"] / info["patch_count"]
+        ]
+        clusters.append({
+            "cluster_id": info["cluster_id"],
+            "callsign": info["callsign"],
+            "patch_count": info["patch_count"],
+            "centroid": centroid
+        })
+        
+    # Sort clusters: put named clusters first, then noise
+    clusters.sort(key=lambda x: (x["cluster_id"] == -1, x["cluster_id"]))
+    
+    return {"features": features, "clusters": clusters}

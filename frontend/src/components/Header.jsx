@@ -1,6 +1,6 @@
-import { Radar } from "lucide-react";
+import { Radar, HelpCircle } from "lucide-react";
 
-export default function Header({ nResults, executionMs }) {
+export default function Header({ nResults, executionMs, onStartTour }) {
   return (
     <header className="flex items-center justify-between border-b border-border px-5 py-3">
       <div className="flex items-center gap-3">
@@ -15,6 +15,10 @@ export default function Header({ nResults, executionMs }) {
         </div>
       </div>
       <div className="flex items-center gap-4 font-mono text-[10px] text-muted">
+        <button onClick={onStartTour} className="flex items-center gap-1.5 hover:text-ink transition-colors">
+          <HelpCircle size={14} />
+          <span>TUTORIAL</span>
+        </button>
         <span className="flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-full bg-verified" />
           AIR-GAPPED

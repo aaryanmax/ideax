@@ -2,7 +2,7 @@ import { swatchColor, verdictFor, VERDICT_STYLE } from "../lib/format.js";
 
 export default function CandidateGallery({ results, total, activeCandidateId, onSelect, threshold }) {
   return (
-    <div>
+    <div className="tour-gallery">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-cond text-sm font-semibold tracking-wide text-ink">Ranked candidates</h2>
         <span className="font-mono text-[10px] text-faint">
@@ -54,9 +54,21 @@ export default function CandidateGallery({ results, total, activeCandidateId, on
                 />
               </div>
               <div className="mt-2 flex items-center justify-between gap-2">
-                <span className="truncate font-mono text-[11px] text-[#B8BFC9]" title={r.tile_id}>
-                  {r.tile_id}
-                </span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="truncate font-mono text-[11px] text-[#B8BFC9]" title={r.tile_id}>
+                    {r.tile_id}
+                  </span>
+                  {r.cluster_id !== undefined && (
+                    <span className={`flex shrink-0 items-center px-1.5 py-0.5 rounded-sm font-mono text-[9px] font-bold tracking-wider ${
+                      r.cluster_id === 0 ? 'bg-emerald-950/80 text-emerald-400 ring-1 ring-emerald-500/50' :
+                      r.cluster_id === 1 ? 'bg-cyan-950/80 text-cyan-400 ring-1 ring-cyan-500/50' :
+                      r.cluster_id === -1 ? 'bg-amber-950/40 text-amber-500/80 ring-1 ring-amber-500/40 border-dashed' :
+                      'bg-indigo-950/80 text-indigo-400 ring-1 ring-indigo-500/50'
+                    }`}>
+                      {r.cluster_callsign}
+                    </span>
+                  )}
+                </div>
                 <span
                   className={`flex shrink-0 items-center gap-1 rounded-sm px-1.5 py-0.5 font-mono text-[10px] ring-1 ${cv.ring} ${cv.text}`}
                 >

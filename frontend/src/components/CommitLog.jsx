@@ -3,7 +3,7 @@ import { STATUS_STYLE } from "../lib/format.js";
 
 export default function CommitLog({ commits }) {
   return (
-    <div className="mt-6">
+    <div className="tour-audit mt-6">
       <h2 className="mb-3 font-cond text-sm font-semibold tracking-wide text-ink">Geospatial commits</h2>
       <div className="divide-y divide-border rounded-sm border border-border">
         {commits.map((c) => {
