@@ -27,6 +27,7 @@ if BACKEND_DIR not in sys.path:
 from app.engine.embedder import Embedder
 from app.engine.gating import evaluate_sfas_change
 from app.engine.tiler import extract_change_polygons
+from app.engine.tactical import TacticalClassifier
 
 def resolve_path(path: str) -> str:
     """Resolves relative file paths against standard workspace locations."""
@@ -165,6 +166,7 @@ def main():
     print("[*] Initializing Foundation Model Embedder (GPU/FP16 & CPU/ONNX)...")
     t_init_start = time.perf_counter()
     embedder = Embedder()
+    classifier = TacticalClassifier(embedder)
     init_time_ms = (time.perf_counter() - t_init_start) * 1000
 
     print("[*] Propagating patches through Embedder...")
@@ -201,12 +203,47 @@ def main():
 
     # Top anomaly coordinates
     top_feature = None
+    classification_result = None
+    classification_time_ms = 0.0
+
     if features:
         features_sorted = sorted(features, key=lambda f: f["properties"].get("area_pixels", 0), reverse=True)
         top_feature = features_sorted[0]
+        
+        # Extract BBox for top_feature to crop from T2
+        props = top_feature.get("properties", {})
+        if "bbox_x" in props and "bbox_y" in props:
+            bx = props["bbox_x"]
+            by = props["bbox_y"]
+            bw = props["bbox_width"]
+            bh = props["bbox_height"]
+        else:
+            poly = top_feature["geometry"]["coordinates"][0]
+            lons = [p[0] for p in poly]
+            lats = [p[1] for p in poly]
+            if bounds_t1["crs"] and bounds_t1["crs"].to_string() != "EPSG:4326":
+                src_xs, src_ys = reproject_coords("EPSG:4326", bounds_t1["crs"], lons, lats)
+            else:
+                src_xs, src_ys = lons, lats
+            pixels = [rasterio.transform.rowcol(bounds_t1["patch_transform"], x, y) for x, y in zip(src_xs, src_ys)]
+            xs = [p[1] for p in pixels]
+            ys = [p[0] for p in pixels]
+            bx, by, bw, bh = min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)
+            
+        # Crop the patch from T2 image
+        bx, by = max(0, bx), max(0, by)
+        crop_t2 = patch_t2[by:by+bh, bx:bx+bw]
+        
+        if crop_t2.shape[0] > 0 and crop_t2.shape[1] > 0:
+            print("[*] Running zero-shot Tactical Classification on top anomaly...")
+            t_class_start = time.perf_counter()
+            pil_crop = Image.fromarray(crop_t2)
+            crop_emb = embedder.embed_image(pil_crop)
+            classification_result = classifier.classify(crop_emb)
+            classification_time_ms = (time.perf_counter() - t_class_start) * 1000
 
     # Total pipeline latency (loading + embedding + gating + contouring)
-    total_pipeline_latency_ms = load_time_ms + embedding_time_ms + gating_time_ms + contours_time_ms
+    total_pipeline_latency_ms = load_time_ms + embedding_time_ms + gating_time_ms + contours_time_ms + classification_time_ms
 
     # 5. Print Structured Terminal Report
     print("\n" + "=" * 80)
@@ -255,11 +292,52 @@ def main():
     print(f"    - Model Embedding:    {embedding_time_ms:8.2f} ms ({embedding_time_ms/2:.2f} ms / patch)")
     print(f"    - SFAS Gate Decision: {gating_time_ms:8.2f} ms")
     print(f"    - Spatial Differencing: {contours_time_ms:6.2f} ms")
+    print(f"    - Tactical Classifier:  {classification_time_ms:6.2f} ms")
     print(f"    ------------------------------------")
     print(f"    - Total Pipeline Time: {total_pipeline_latency_ms:7.2f} ms")
+    
+    print("\n[6] TACTICAL CLASSIFICATION & SPOTREP")
+    if classification_result:
+        cls_label = classification_result["classification"]
+        conf = classification_result["confidence"] * 100
+        print(f"    - Classified Label:   {cls_label}")
+        print(f"    - Confidence:         {conf:.2f}%")
+        print("    - Probability Distribution:")
+        for k, v in classification_result["distribution"].items():
+            print(f"        * {v*100:5.2f}% : {k}")
+            
+        print("\n    >>> SPOTREP BLOCK <<<")
+        print(f"    ACQUISITION DTG : {t2_meta.get('timestamp', '310526Z AUG 26')}")
+        
+        centroid_lat, centroid_lon = "Unknown", "Unknown"
+        if top_feature and "geometry" in top_feature:
+            poly = top_feature["geometry"]["coordinates"][0]
+            lons = [p[0] for p in poly]
+            lats = [p[1] for p in poly]
+            centroid_lon = sum(lons) / len(lons)
+            centroid_lat = sum(lats) / len(lats)
+            
+        if isinstance(centroid_lat, float):
+            print(f"    COORDINATES     : {centroid_lat:.6f} N, {centroid_lon:.6f} E")
+        else:
+            print(f"    COORDINATES     : {centroid_lat}, {centroid_lon}")
+            
+        print(f"    CLASSIFICATION  : {cls_label.upper()} ({conf:.1f}% confidence)")
+        
+        # Recommended action based on class keywords
+        action = "MONITOR"
+        if "vegetation" in cls_label.lower() or "crop" in cls_label.lower():
+            action = "SUPPRESS_LOG_BENIGN"
+        elif any(k in cls_label.lower() for k in ["bunker", "convoy", "cleared", "trench", "berm", "road"]):
+            action = "IMMEDIATE_TASK_UAV_RECON"
+            
+        print(f"    RECOMMEND ACTION: {action}")
+    else:
+        print("    - No anomaly patches extracted to classify.")
+        
     print("=" * 80 + "\n")
 
-    # 6. Save 3-Panel Visual Output
+    # 7. Save 3-Panel Visual Output
     print(f"[*] Generating 3-panel visualization figure...")
     fig, axs = plt.subplots(1, 3, figsize=(18, 6), dpi=150)
 
