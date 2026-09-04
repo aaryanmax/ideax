@@ -1,19 +1,65 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Header from "./components/Header.jsx";
 import SearchPanel from "./components/SearchPanel.jsx";
 import CandidateGallery from "./components/CandidateGallery.jsx";
 import CommitLog from "./components/CommitLog.jsx";
 import DetailPanel from "./components/DetailPanel.jsx";
-import { MOCK_SEARCH_RESPONSE, MOCK_COMMITS } from "./data/mockSearchResponse.js";
-// import { searchTiles } from "./lib/api.js";  // uncomment once /search is live
+import { searchTiles, analyzeChange } from "./lib/api.js";
+import { MOCK_COMMITS } from "./data/mockSearchResponse.js";
 
 export default function App() {
-  const [query, setQuery] = useState(MOCK_SEARCH_RESPONSE.query);
-  const [response] = useState(MOCK_SEARCH_RESPONSE); // replace with useState(null) + useEffect(searchTiles) when live
+  const [query, setQuery] = useState("new structure near ridge access road");
+  const [response, setResponse] = useState({ results: [], n_results: 0, execution_time_ms: 0 });
   const [minConfidence, setMinConfidence] = useState(0);
   const [sensorFilter, setSensorFilter] = useState(null);
-  const [selectedTileId, setSelectedTileId] = useState(MOCK_SEARCH_RESPONSE.results[0].tile_id);
+  const [selectedTileId, setSelectedTileId] = useState(null);
   const [commits, setCommits] = useState(MOCK_COMMITS);
+  const [activeAnalysis, setActiveAnalysis] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    async function doSearch() {
+      if (!query) return;
+      try {
+        const start = performance.now();
+        const geojson = await searchTiles(query, 6);
+        const execTime = performance.now() - start;
+        if (!active) return;
+
+        if (geojson && geojson.features) {
+          const transformed = geojson.features.map((feature, idx) => ({
+            tile_id: feature.properties.patch_id || `patch_${idx}`,
+            score: feature.properties.similarity_score,
+            metadata: {
+              latitude: feature.properties.center ? feature.properties.center[0] : 0,
+              longitude: feature.properties.center ? feature.properties.center[1] : 0,
+              acquisition_date: "2026-08-31",
+              sensor: "Sentinel-2 L2A",
+              cloud_cover_pct: 0,
+            },
+            coordinates: feature.geometry.coordinates,
+            verified: feature.properties.similarity_score > 0.20
+          }));
+          
+          setResponse({
+            results: transformed,
+            n_results: transformed.length,
+            execution_time_ms: execTime
+          });
+          
+          if (transformed.length > 0) {
+            setSelectedTileId(transformed[0].tile_id);
+          } else {
+            setSelectedTileId(null);
+          }
+        }
+      } catch (err) {
+        console.error("Search error:", err);
+      }
+    }
+    doSearch();
+    return () => { active = false; };
+  }, [query]);
 
   const sensors = useMemo(() => [...new Set(response.results.map((r) => r.metadata.sensor))], [response]);
 
@@ -27,8 +73,33 @@ export default function App() {
 
   const selected = results.find((r) => r.tile_id === selectedTileId) ?? results[0] ?? null;
 
+  useEffect(() => {
+    let active = true;
+    async function doAnalyze() {
+      if (!selected) {
+        setActiveAnalysis(null);
+        return;
+      }
+      setActiveAnalysis(null);
+      try {
+        let colOff = 4500, rowOff = 4500;
+        const match = selected.tile_id.match(/patch_(\d+)_(\d+)/);
+        if (match) {
+          colOff = parseInt(match[1], 10);
+          rowOff = parseInt(match[2], 10);
+        }
+        
+        const analysis = await analyzeChange(colOff, rowOff, true);
+        if (active) setActiveAnalysis(analysis);
+      } catch (err) {
+        console.error("Analyze error:", err);
+      }
+    }
+    doAnalyze();
+    return () => { active = false; };
+  }, [selected]);
+
   // Stand-in "before" tile: nearest earlier pass over the same coordinates.
-  // Once /change is live, tile_id_t1 comes back from the backend directly.
   const before = useMemo(() => {
     if (!selected) return null;
     return (
@@ -87,6 +158,7 @@ export default function App() {
           threshold={minConfidence || 0.5}
           onApprove={() => recordDecision("approved")}
           onReject={() => recordDecision("rejected")}
+          activeAnalysis={activeAnalysis}
         />
       </div>
     </div>

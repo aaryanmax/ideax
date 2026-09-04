@@ -2,7 +2,7 @@ import { Check, ShieldAlert, ShieldCheck, X } from "lucide-react";
 import SplitSlider from "./SplitSlider.jsx";
 import { verdictFor, VERDICT_STYLE } from "../lib/format.js";
 
-export default function DetailPanel({ selected, before, threshold, onApprove, onReject }) {
+export default function DetailPanel({ selected, before, threshold, onApprove, onReject, activeAnalysis }) {
   if (!selected) {
     return (
       <aside className="border-t border-border p-4 lg:border-l lg:border-t-0">
@@ -30,9 +30,15 @@ export default function DetailPanel({ selected, before, threshold, onApprove, on
           <p className="mt-0.5 font-mono text-[10px] text-muted">
             {selected.metadata.latitude.toFixed(3)}, {selected.metadata.longitude.toFixed(3)}
           </p>
+          {activeAnalysis?.classification && (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded bg-emerald-900/30 px-2 py-1 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/20">
+              <span className="uppercase">{activeAnalysis.classification.classification}</span>
+              <span className="opacity-75">{(activeAnalysis.classification.confidence * 100).toFixed(0)}%</span>
+            </div>
+          )}
         </div>
 
-        <SplitSlider before={before.metadata} after={selected.metadata} />
+        <SplitSlider before={before?.metadata} after={selected.metadata} />
 
         <dl className="grid grid-cols-2 gap-y-2 font-mono text-[10px]">
           <dt className="text-faint">Projection</dt>
@@ -48,6 +54,13 @@ export default function DetailPanel({ selected, before, threshold, onApprove, on
           <dt className="text-faint">score</dt>
           <dd className="text-right text-amber">{selected.score.toFixed(2)}</dd>
         </dl>
+
+        {activeAnalysis?.spotrep && (
+          <div className="mt-4 p-3 bg-zinc-950 border border-emerald-900/60 rounded font-mono text-xs text-emerald-400 whitespace-pre-wrap leading-relaxed shadow-inner">
+            <div className="text-[10px] text-emerald-600 font-bold uppercase mb-1">Generated SPOTREP (DGIS-Standard)</div>
+            {activeAnalysis.spotrep}
+          </div>
+        )}
 
         <div className="flex gap-2 pt-1">
           <button
