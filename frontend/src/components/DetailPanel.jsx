@@ -19,7 +19,9 @@ export default function DetailPanel({
   onSelectCandidate,
   onDiscoverPattern,
   isDiscovering,
-  onDatasetFilterChange
+  onDatasetFilterChange,
+  onFetchReject,
+  onFetchSuccess
 }) {
   const [isCommitting, setIsCommitting] = useState(false);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
@@ -130,6 +132,8 @@ export default function DetailPanel({
             isExpanded={false}
             onToggleExpand={() => setIsMapExpanded(true)}
             onDatasetFilterChange={onDatasetFilterChange}
+            onFetchReject={onFetchReject}
+            onFetchSuccess={onFetchSuccess}
           />
           <div className="absolute top-1 left-1 px-1 text-[9px] font-mono text-zinc-400 uppercase tracking-widest z-[400] pointer-events-none drop-shadow-md bg-black/40 rounded">
             Sector {selected.tile_id.split('_')[1] || '01'}
@@ -226,6 +230,9 @@ export default function DetailPanel({
                   hideHeader={true}
                   isExpanded={true}
                   onToggleExpand={() => setIsMapExpanded(false)}
+                  onDatasetFilterChange={onDatasetFilterChange}
+                  onFetchReject={onFetchReject}
+                  onFetchSuccess={onFetchSuccess}
                 />
              </div>
            </div>

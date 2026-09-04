@@ -23,6 +23,21 @@ export default function App() {
   const [runTour, setRunTour] = useState(false);
   const [discoverySummary, setDiscoverySummary] = useState(null);
   const [isDiscovering, setIsDiscovering] = useState(false);
+  const [tacticalAlert, setTacticalAlert] = useState(null);
+
+  const handleFetchReject = (reason) => {
+    setTacticalAlert({
+      type: 'error',
+      message: reason
+    });
+  };
+
+  const handleFetchSuccess = (sector) => {
+    setTacticalAlert({
+      type: 'success',
+      message: `Surveillance Sector Locked: ${sector.name}. Retrieving assets...`
+    });
+  };
 
   // Fetch initial audit log records on mount
   const fetchAuditLog = async () => {
@@ -275,6 +290,31 @@ export default function App() {
         />
 
         <main className="p-4 flex flex-col min-w-0">
+          {tacticalAlert && (
+            <div className={`mb-4 flex items-center justify-between rounded border px-4 py-3 shadow-[0_0_15px_rgba(0,0,0,0.2)] ${
+              tacticalAlert.type === 'error'
+                ? 'border-rose-500/60 bg-rose-950/50 text-rose-300'
+                : 'border-emerald-500/60 bg-emerald-950/50 text-emerald-300'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                  tacticalAlert.type === 'error' ? 'bg-rose-900/80 text-rose-300' : 'bg-emerald-900/80 text-emerald-300'
+                }`}>
+                  {tacticalAlert.type === 'error' ? '!' : '✓'}
+                </div>
+                <p className="font-mono text-xs font-medium tracking-wide">
+                  {tacticalAlert.message}
+                </p>
+              </div>
+              <button 
+                onClick={() => setTacticalAlert(null)}
+                className="text-zinc-400 hover:text-zinc-100"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
           {discoverySummary && (
             <div className="mb-4 flex items-center justify-between rounded border border-emerald-500/50 bg-emerald-950/40 px-4 py-3 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
               <div className="flex items-center gap-3">
@@ -320,6 +360,8 @@ export default function App() {
           onDiscoverPattern={handleDiscoverPattern}
           isDiscovering={isDiscovering}
           onDatasetFilterChange={setDatasetFilter}
+          onFetchReject={handleFetchReject}
+          onFetchSuccess={handleFetchSuccess}
         />
       </div>
     </div>

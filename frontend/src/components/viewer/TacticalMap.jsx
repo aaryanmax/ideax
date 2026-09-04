@@ -1,67 +1,194 @@
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Maximize2, Minimize2 } from "lucide-react";
+import { Maximize2, Minimize2, MapPin, AlertTriangle, X, Crosshair, CheckCircle2 } from "lucide-react";
 import { verdictFor, VERDICT_STYLE } from "../../lib/format.js";
+import { triggerHaptic } from "../../lib/haptics.js";
 
-import { useState } from "react";
-import { MapPin } from "lucide-react";
+/**
+ * Validate whether coordinates fall within indexed tactical surveillance coverage
+ */
+export function getSectorForCoordinates(lat, lng) {
+  // Delhi NCR Tactical Sector (lat: ~28.17-28.72, lon: ~76.25-76.87)
+  if (lat >= 27.8 && lat <= 29.2 && lng >= 75.8 && lng <= 77.5) {
+    return {
+      available: true,
+      sectorId: "delhi",
+      name: "Delhi NCR Tactical Sector",
+      center: [28.536, 76.457]
+    };
+  }
+  // Mumbai Littoral Sector (lat: ~18.90-19.25, lon: ~72.78-73.05)
+  if (lat >= 18.6 && lat <= 19.6 && lng >= 72.5 && lng <= 73.4) {
+    return {
+      available: true,
+      sectorId: "mumbai",
+      name: "Mumbai Littoral Sector",
+      center: [19.041, 72.827]
+    };
+  }
+  return {
+    available: false,
+    reason: `Coordinates [${lat.toFixed(3)}°N, ${lng.toFixed(3)}°E] fall outside active surveillance coverage. Indexed data is currently available for Delhi NCR (28.5°N, 76.5°E) and Mumbai Littoral (19.0°N, 72.8°E).`
+  };
+}
 
-function MapInterface({ activeLocation, onDatasetFilterChange }) {
+function MapInterface({ 
+  activeLocation, 
+  activeCandidateId, 
+  onDatasetFilterChange, 
+  onFetchReject,
+  onFetchSuccess,
+  isExpanded 
+}) {
   const map = useMap();
-  const [autoPan, setAutoPan] = useState(true);
+  const [isUserPanned, setIsUserPanned] = useState(false);
+  const [rejection, setRejection] = useState(null);
+  const [successInfo, setSuccessInfo] = useState(null);
 
+  const lastFlownIdRef = useRef(null);
+  const lastFlownCoordsRef = useRef(null);
+
+  // Resize check when map container mounts or expands/collapses
   useEffect(() => {
-    // Force a resize check just in case the container size wasn't ready on first mount
     const timer = setTimeout(() => {
       map.invalidateSize();
     }, 250);
     return () => clearTimeout(timer);
-  }, [map]);
+  }, [map, isExpanded]);
 
+  // Smooth flyTo candidate when selected or when new candidate dataset is loaded
   useEffect(() => {
-    if (activeLocation && autoPan) {
-      map.flyTo(activeLocation, 13, { animate: true });
+    if (!activeLocation) return;
+    const coordsKey = `${activeLocation[0].toFixed(4)},${activeLocation[1].toFixed(4)}`;
+    
+    const candidateChanged = activeCandidateId && lastFlownIdRef.current !== activeCandidateId;
+    const coordsChanged = coordsKey !== lastFlownCoordsRef.current;
+    
+    if (candidateChanged || (!isUserPanned && coordsChanged)) {
+      lastFlownIdRef.current = activeCandidateId;
+      lastFlownCoordsRef.current = coordsKey;
+      setIsUserPanned(false);
+      setRejection(null);
+      map.flyTo(activeLocation, Math.max(map.getZoom(), 13), { 
+        animate: true,
+        duration: 1.0 
+      });
     }
-  }, [activeLocation, map, autoPan]);
+  }, [activeCandidateId, activeLocation, isUserPanned, map]);
 
+  // Track user manual panning
   useMapEvents({
     dragstart: () => {
-      setAutoPan(false);
+      setIsUserPanned(true);
+      setSuccessInfo(null);
     }
   });
 
   const handleFetchHere = () => {
     const center = map.getCenter();
-    setAutoPan(true); // Re-enable autopan for the upcoming results
-    if (onDatasetFilterChange) {
-      if (center.lat < 23) {
-        onDatasetFilterChange("mumbai");
-      } else {
-        onDatasetFilterChange("delhi");
+    const sectorCheck = getSectorForCoordinates(center.lat, center.lng);
+
+    if (!sectorCheck.available) {
+      // REJECT REQUEST AND STAY EXACTLY THERE
+      setIsUserPanned(true);
+      setSuccessInfo(null);
+      setRejection({
+        lat: center.lat,
+        lng: center.lng,
+        message: sectorCheck.reason
+      });
+      triggerHaptic('reject');
+      if (onFetchReject) {
+        onFetchReject(sectorCheck.reason);
       }
+      return;
+    }
+
+    // ACCEPT REQUEST
+    setRejection(null);
+    setSuccessInfo(`Acquiring ${sectorCheck.name}...`);
+    setIsUserPanned(false);
+    triggerHaptic('scan');
+    
+    if (onFetchSuccess) {
+      onFetchSuccess(sectorCheck);
+    }
+    if (onDatasetFilterChange) {
+      onDatasetFilterChange(sectorCheck.sectorId);
     }
   };
 
-  if (autoPan) return null;
+  const handleRecenter = () => {
+    if (activeLocation) {
+      setIsUserPanned(false);
+      setRejection(null);
+      map.flyTo(activeLocation, Math.max(map.getZoom(), 13), { animate: true, duration: 0.8 });
+    }
+  };
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[400]">
-      <button 
-        onClick={handleFetchHere}
-        className="flex items-center gap-2 bg-ink text-base px-3 py-1.5 rounded-full shadow-lg border border-border text-xs font-cond tracking-wide hover:bg-panel transition-colors"
-      >
-        <MapPin size={14} className="text-emerald-400" />
-        Fetch Here
-      </button>
-    </div>
+    <>
+      {/* Rejection Alert: Map stays here and displays why */}
+      {rejection && (
+        <div className="absolute top-2 left-2 right-2 sm:left-1/2 sm:-translate-x-1/2 sm:w-[340px] z-[400] flex flex-col gap-1 p-2 bg-zinc-950/95 border border-rose-500/70 text-rose-200 rounded shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-rose-400 uppercase font-mono">
+              <AlertTriangle size={13} className="text-rose-400 shrink-0" />
+              <span>Coverage Missing (Rejected)</span>
+            </div>
+            <button 
+              onClick={() => setRejection(null)} 
+              className="text-zinc-400 hover:text-white p-0.5"
+              title="Dismiss"
+            >
+              <X size={12} />
+            </button>
+          </div>
+          <p className="text-[10px] font-mono leading-tight text-zinc-300 text-left">
+            {rejection.message}
+          </p>
+        </div>
+      )}
+
+      {/* Manual Pan Actions: Fetch Here & Re-center */}
+      {isUserPanned && !rejection && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[400] flex items-center gap-1.5">
+          <button 
+            onClick={handleFetchHere}
+            className="flex items-center gap-1.5 bg-zinc-900/95 hover:bg-zinc-800 text-zinc-100 px-3 py-1.5 rounded-full shadow-xl border border-emerald-500/60 hover:border-emerald-400 text-xs font-mono font-medium tracking-wider transition-all hover:scale-105 active:scale-95"
+            title="Scan currently visible map area"
+          >
+            <MapPin size={13} className="text-emerald-400 shrink-0" />
+            <span>FETCH HERE</span>
+          </button>
+          {activeLocation && (
+            <button
+              onClick={handleRecenter}
+              className="flex items-center gap-1 bg-zinc-900/95 hover:bg-zinc-800 text-zinc-300 hover:text-white px-2 py-1.5 rounded-full shadow-xl border border-zinc-700 text-xs font-mono tracking-wider transition-all hover:scale-105 active:scale-95"
+              title="Re-center on active target"
+            >
+              <Crosshair size={13} className="text-amber-400 shrink-0" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Success Status Indicator */}
+      {successInfo && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[400] flex items-center gap-1.5 px-3 py-1 bg-emerald-950/95 border border-emerald-500/60 text-emerald-300 rounded-full text-xs font-mono shadow-xl backdrop-blur-md">
+          <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+          <span>{successInfo}</span>
+        </div>
+      )}
+    </>
   );
 }
 
 export default function TacticalMap({ 
-  candidates, 
-  total, 
+  candidates = [], 
+  total = 0, 
   activeCandidateId, 
   onSelect, 
   threshold,
@@ -70,12 +197,16 @@ export default function TacticalMap({
   hideHeader = false,
   isExpanded = false,
   onToggleExpand,
-  onDatasetFilterChange
+  onDatasetFilterChange,
+  onFetchReject,
+  onFetchSuccess
 }) {
   const activeCandidate = candidates.find(c => c.tile_id === activeCandidateId);
   const activeLocation = activeCandidate 
     ? [activeCandidate.metadata.latitude, activeCandidate.metadata.longitude]
-    : (candidates.length > 0 ? [candidates[0].metadata.latitude, candidates[0].metadata.longitude] : [28.5, 76.4]);
+    : (candidates.length > 0 ? [candidates[0].metadata.latitude, candidates[0].metadata.longitude] : null);
+
+  const initialCenter = activeLocation || [28.536, 76.457];
 
   return (
     <div className={`flex flex-col relative ${className}`} style={style}>
@@ -88,7 +219,13 @@ export default function TacticalMap({
         </div>
       )}
       <div className="flex-1 rounded-sm border border-border overflow-hidden relative z-0" style={{ height: "100%", minHeight: "100px" }}>
-        <MapContainer center={activeLocation} zoom={13} zoomControl={isExpanded} attributionControl={false} style={{ height: "100%", width: "100%", zIndex: 0 }}>
+        <MapContainer 
+          center={initialCenter} 
+          zoom={13} 
+          zoomControl={isExpanded} 
+          attributionControl={false} 
+          style={{ height: "100%", width: "100%", zIndex: 0 }}
+        >
           <TileLayer
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_2wrn_1_e49a6d427e83ef6163d8f9e4"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -145,7 +282,14 @@ export default function TacticalMap({
               />
             );
           })}
-          <MapInterface activeLocation={activeLocation} onDatasetFilterChange={onDatasetFilterChange} />
+          <MapInterface 
+            activeLocation={activeLocation} 
+            activeCandidateId={activeCandidateId}
+            onDatasetFilterChange={onDatasetFilterChange}
+            onFetchReject={onFetchReject}
+            onFetchSuccess={onFetchSuccess}
+            isExpanded={isExpanded}
+          />
         </MapContainer>
         
         {onToggleExpand && (

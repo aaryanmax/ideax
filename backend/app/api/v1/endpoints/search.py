@@ -52,6 +52,8 @@ class SearchRequest(BaseModel):
 def search_text(request: SearchRequest):
     try:
         dataset_filter = request.dataset.lower() if request.dataset else "all"
+        if dataset_filter in ["all", "none", "auto"]:
+            dataset_filter = "all"
         
         if dataset_filter == "all" and delhi_engine and mumbai_engine:
             res_delhi = delhi_engine.search_by_text(request.query, top_k=request.top_k)
