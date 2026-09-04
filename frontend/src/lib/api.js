@@ -41,3 +41,40 @@ export async function analyzeChange(colOff = 4500, rowOff = 4500, force = true) 
     throw err;
   }
 }
+
+/**
+ * Retrieve audit trail records from SQLite
+ */
+export async function getAuditLog(status = null, limit = 50) {
+  try {
+    let url = `${API_BASE}/audit/log?limit=${limit}`;
+    if (status) url += `&status=${encodeURIComponent(status)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Fetch audit log failed: ${res.statusText}`);
+    return await res.json();
+  } catch (err) {
+    console.error("API error during getAuditLog:", err);
+    throw err;
+  }
+}
+
+/**
+ * Commit target verification decision to audit trail
+ */
+export async function commitTarget(payload) {
+  try {
+    const res = await fetch(`${API_BASE}/audit/commit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Commit target failed: ${res.statusText} (${errText})`);
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("API error during commitTarget:", err);
+    throw err;
+  }
+}

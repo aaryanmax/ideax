@@ -48,3 +48,42 @@ class ChangeRequest(BaseModel):
 
 class ChangeResponse(BaseModel):
     status: str
+
+class AuditCommitRequest(BaseModel):
+    record_id: Optional[int] = None
+    patch_id: Optional[str] = None
+    new_status: str  # "APPROVED" or "REJECTED"
+    confidence: Optional[float] = None
+    analyst_id: Optional[str] = "OFFICER_DELHI_01"
+    rationale: Optional[str] = None
+    latitude: Optional[float] = 28.5
+    longitude: Optional[float] = 76.5
+
+class AuditRecordOut(BaseModel):
+    id: int
+    query_string: Optional[str] = None
+    latitude: float
+    longitude: float
+    timestamp: Optional[Any] = None
+    sensor_type: Optional[str] = "Sentinel-2"
+    status: Optional[str] = "PENDING"
+    confidence_score: Optional[float] = None
+    hash_value: Optional[str] = None
+    reviewed_at: Optional[Any] = None
+    patch_id: Optional[str] = None
+    t1_timestamp: Optional[Any] = None
+    t2_timestamp: Optional[Any] = None
+    t1_image_path: Optional[str] = None
+    t2_image_path: Optional[str] = None
+    geojson_polygon: Optional[str] = None
+    sfas_confidence: Optional[float] = None
+    analyst_id: Optional[str] = None
+    analyst_rationale: Optional[str] = None
+    extra_metadata: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class AuditLogResponse(BaseModel):
+    total: int
+    records: List[AuditRecordOut]

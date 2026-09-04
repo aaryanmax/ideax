@@ -62,7 +62,10 @@ class SemanticSearchEngine:
                         "patch_id": record.get("patch_id", idx_str),
                         "similarity_score": float(score),
                         "center": record.get("center"),
-                        "file_path": record.get("file_path")
+                        "file_path": record.get("file_path"),
+                        "thumbnail_url": record.get("thumbnail_url"),
+                        "col_off": record.get("col_off"),
+                        "row_off": record.get("row_off")
                     }
                 }
                 results.append(feature)

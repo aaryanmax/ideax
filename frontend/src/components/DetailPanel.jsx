@@ -1,8 +1,20 @@
-import { Check, ShieldAlert, ShieldCheck, X } from "lucide-react";
+import { useState } from "react";
+import { Check, ShieldAlert, ShieldCheck, X, Loader2 } from "lucide-react";
 import SplitSlider from "./SplitSlider.jsx";
 import { verdictFor, VERDICT_STYLE } from "../lib/format.js";
+import { commitTarget } from "../lib/api.js";
 
-export default function DetailPanel({ selected, before, threshold, onApprove, onReject, activeAnalysis }) {
+export default function DetailPanel({
+  selected,
+  before,
+  threshold,
+  onApprove,
+  onReject,
+  activeAnalysis,
+  onCommitSuccess,
+}) {
+  const [isCommitting, setIsCommitting] = useState(false);
+
   if (!selected) {
     return (
       <aside className="border-t border-border p-4 lg:border-l lg:border-t-0">
@@ -13,6 +25,34 @@ export default function DetailPanel({ selected, before, threshold, onApprove, on
 
   const verdict = verdictFor(selected.score, threshold);
   const vs = VERDICT_STYLE[verdict];
+
+  const handleDecision = async (status) => {
+    if (!selected || isCommitting) return;
+    setIsCommitting(true);
+    try {
+      const payload = {
+        patch_id: selected.tile_id,
+        new_status: status,
+        analyst_id: "OFFICER_DELHI_01",
+        confidence: selected.score,
+        latitude: selected.metadata?.latitude ?? 28.5,
+        longitude: selected.metadata?.longitude ?? 76.5,
+        rationale: activeAnalysis?.classification
+          ? `Tactical classification: ${activeAnalysis.classification.classification} (${(activeAnalysis.classification.confidence * 100).toFixed(0)}%)`
+          : `Analyst manual decision: ${status}`,
+      };
+
+      await commitTarget(payload);
+
+      if (status === "APPROVED" && onApprove) onApprove();
+      if (status === "REJECTED" && onReject) onReject();
+      if (onCommitSuccess) await onCommitSuccess();
+    } catch (err) {
+      console.error("Failed to commit target:", err);
+    } finally {
+      setIsCommitting(false);
+    }
+  };
 
   return (
     <aside className="border-t border-border p-4 lg:border-l lg:border-t-0">
@@ -56,25 +96,31 @@ export default function DetailPanel({ selected, before, threshold, onApprove, on
         </dl>
 
         {activeAnalysis?.spotrep && (
-          <div className="mt-4 p-3 bg-zinc-950 border border-emerald-900/60 rounded font-mono text-xs text-emerald-400 whitespace-pre-wrap leading-relaxed shadow-inner">
-            <div className="text-[10px] text-emerald-600 font-bold uppercase mb-1">Generated SPOTREP (DGIS-Standard)</div>
-            {activeAnalysis.spotrep}
+          <div className="mt-4 p-3 bg-zinc-950 border border-emerald-900/60 rounded shadow-inner">
+            <div className="text-[10px] text-emerald-500 font-bold uppercase mb-1.5 tracking-wider">
+              Generated SPOTREP (DGIS-Standard)
+            </div>
+            <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap font-medium text-emerald-400">
+              {activeAnalysis.spotrep}
+            </pre>
           </div>
         )}
 
         <div className="flex gap-2 pt-1">
           <button
-            onClick={onApprove}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-sm border border-verified/40 bg-verified/10 py-1.5 font-cond text-xs font-semibold tracking-wide text-verifiedText hover:bg-verified/15"
+            disabled={isCommitting}
+            onClick={() => handleDecision("APPROVED")}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-sm border border-verified/40 bg-verified/10 py-1.5 font-cond text-xs font-semibold tracking-wide text-verifiedText hover:bg-verified/15 disabled:opacity-50"
           >
-            <Check size={13} />
+            {isCommitting ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
             Approve
           </button>
           <button
-            onClick={onReject}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-sm border border-danger/40 bg-danger/10 py-1.5 font-cond text-xs font-semibold tracking-wide text-dangerText hover:bg-danger/15"
+            disabled={isCommitting}
+            onClick={() => handleDecision("REJECTED")}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-sm border border-danger/40 bg-danger/10 py-1.5 font-cond text-xs font-semibold tracking-wide text-dangerText hover:bg-danger/15 disabled:opacity-50"
           >
-            <X size={13} />
+            {isCommitting ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
             Reject
           </button>
         </div>
@@ -82,3 +128,4 @@ export default function DetailPanel({ selected, before, threshold, onApprove, on
     </aside>
   );
 }
+

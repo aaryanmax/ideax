@@ -4,11 +4,11 @@ import SearchPanel from "./components/SearchPanel.jsx";
 import CandidateGallery from "./components/CandidateGallery.jsx";
 import CommitLog from "./components/CommitLog.jsx";
 import DetailPanel from "./components/DetailPanel.jsx";
-import { searchTiles, analyzeChange } from "./lib/api.js";
+import { searchTiles, analyzeChange, getAuditLog } from "./lib/api.js";
 import { MOCK_COMMITS } from "./data/mockSearchResponse.js";
 
 export default function App() {
-  const [query, setQuery] = useState("new structure near ridge access road");
+  const [query, setQuery] = useState("seasonal crop fields or agricultural land");
   const [response, setResponse] = useState({ results: [], n_results: 0, execution_time_ms: 0 });
   const [minConfidence, setMinConfidence] = useState(0);
   const [sensorFilter, setSensorFilter] = useState(null);
@@ -16,39 +16,69 @@ export default function App() {
   const [commits, setCommits] = useState(MOCK_COMMITS);
   const [activeAnalysis, setActiveAnalysis] = useState(null);
 
+  // Fetch initial audit log records on mount
+  const fetchAuditLog = async () => {
+    try {
+      const data = await getAuditLog(null, 50);
+      if (data && data.records && data.records.length > 0) {
+        setCommits(data.records);
+      }
+    } catch (err) {
+      console.warn("Could not load audit log from backend:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchAuditLog();
+  }, []);
+
+  // Semantic search triggered on query change & mount
   useEffect(() => {
     let active = true;
     async function doSearch() {
-      if (!query) return;
+      const searchQuery = query || "seasonal crop fields or agricultural land";
       try {
         const start = performance.now();
-        const geojson = await searchTiles(query, 6);
+        const geojson = await searchTiles(searchQuery, 6);
         const execTime = performance.now() - start;
         if (!active) return;
 
         if (geojson && geojson.features) {
-          const transformed = geojson.features.map((feature, idx) => ({
-            tile_id: feature.properties.patch_id || `patch_${idx}`,
-            score: feature.properties.similarity_score,
-            metadata: {
-              latitude: feature.properties.center ? feature.properties.center[0] : 0,
-              longitude: feature.properties.center ? feature.properties.center[1] : 0,
-              acquisition_date: "2026-08-31",
-              sensor: "Sentinel-2 L2A",
-              cloud_cover_pct: 0,
-            },
-            coordinates: feature.geometry.coordinates,
-            verified: feature.properties.similarity_score > 0.20
-          }));
-          
+          const transformed = geojson.features.map((feature, idx) => {
+            const patchId = feature.properties.patch_id || `patch_${idx}`;
+            const rawThumb = feature.properties.thumbnail_url;
+            const thumbUrl = rawThumb
+              ? (rawThumb.startsWith("http") ? rawThumb : `http://localhost:8000${rawThumb}`)
+              : `http://localhost:8000/static/tiles/thumbnails/${patchId}.png`;
+
+            return {
+              tile_id: patchId,
+              score: feature.properties.similarity_score,
+              thumbnail_url: thumbUrl,
+              col_off: feature.properties.col_off,
+              row_off: feature.properties.row_off,
+              metadata: {
+                latitude: feature.properties.center ? feature.properties.center[0] : 28.536,
+                longitude: feature.properties.center ? feature.properties.center[1] : 76.457,
+                acquisition_date: "2026-08-31",
+                sensor: "Sentinel-2 L2A",
+                cloud_cover_pct: 0,
+              },
+              coordinates: feature.geometry?.coordinates,
+              verified: feature.properties.similarity_score > 0.20,
+            };
+          });
+
           setResponse({
             results: transformed,
             n_results: transformed.length,
-            execution_time_ms: execTime
+            execution_time_ms: execTime,
           });
-          
+
           if (transformed.length > 0) {
-            setSelectedTileId(transformed[0].tile_id);
+            setSelectedTileId((prev) =>
+              transformed.some((t) => t.tile_id === prev) ? prev : transformed[0].tile_id
+            );
           } else {
             setSelectedTileId(null);
           }
@@ -58,7 +88,9 @@ export default function App() {
       }
     }
     doSearch();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [query]);
 
   const sensors = useMemo(() => [...new Set(response.results.map((r) => r.metadata.sensor))], [response]);
@@ -73,6 +105,7 @@ export default function App() {
 
   const selected = results.find((r) => r.tile_id === selectedTileId) ?? results[0] ?? null;
 
+  // Run change detection & tactical SPOTREP classification when selected tile changes
   useEffect(() => {
     let active = true;
     async function doAnalyze() {
@@ -82,13 +115,21 @@ export default function App() {
       }
       setActiveAnalysis(null);
       try {
-        let colOff = 4500, rowOff = 4500;
-        const match = selected.tile_id.match(/patch_(\d+)_(\d+)/);
-        if (match) {
-          colOff = parseInt(match[1], 10);
-          rowOff = parseInt(match[2], 10);
+        let colOff = selected.col_off;
+        let rowOff = selected.row_off;
+
+        if (colOff == null || rowOff == null) {
+          const matchNum = selected.tile_id.match(/patch_(\d+)$/);
+          if (matchNum) {
+            const idx = parseInt(matchNum[1], 10);
+            colOff = 4000 + (idx % 5) * 512;
+            rowOff = 4000 + Math.floor(idx / 5) * 512;
+          } else {
+            colOff = 4500;
+            rowOff = 4500;
+          }
         }
-        
+
         const analysis = await analyzeChange(colOff, rowOff, true);
         if (active) setActiveAnalysis(analysis);
       } catch (err) {
@@ -96,7 +137,9 @@ export default function App() {
       }
     }
     doAnalyze();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [selected]);
 
   // Stand-in "before" tile: nearest earlier pass over the same coordinates.
@@ -118,7 +161,7 @@ export default function App() {
       {
         id: `c-${Math.floor(Math.random() * 9000 + 1000)}`,
         tile_id: selected.tile_id,
-        analyst: "P",
+        analyst: "OFFICER_DELHI_01",
         status,
         ts: new Date().toISOString().slice(0, 16).replace("T", " "),
       },
@@ -159,6 +202,7 @@ export default function App() {
           onApprove={() => recordDecision("approved")}
           onReject={() => recordDecision("rejected")}
           activeAnalysis={activeAnalysis}
+          onCommitSuccess={fetchAuditLog}
         />
       </div>
     </div>
