@@ -22,15 +22,21 @@ PROJECT_ROOT = os.path.abspath(os.path.join(BACKEND_DIR, ".."))
 t1_path = os.path.join(PROJECT_ROOT, "data", "processed", "T43RFM_20260217T054121_TCI_10m.jp2")
 t2_path = os.path.join(PROJECT_ROOT, "data", "processed", "T43RFM_20260831T052641_TCI_10m.jp2")
 
+import threading
+
 _embedder = None
 _classifier = None
+_model_lock = threading.Lock()
 
 def get_ai_models():
     global _embedder, _classifier
-    if _embedder is None:
-        print("[*] Initializing AI Engine Gate and Classifier...")
-        _embedder = Embedder()
-        _classifier = TacticalClassifier(_embedder)
+    if _embedder is None or _classifier is None:
+        with _model_lock:
+            if _embedder is None or _classifier is None:
+                print("[*] Initializing AI Engine Gate and Classifier...")
+                temp_embedder = _embedder or Embedder()
+                _classifier = TacticalClassifier(temp_embedder)
+                _embedder = temp_embedder
     return _embedder, _classifier
 
 class ChangeRequest(BaseModel):

@@ -22,12 +22,17 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", "..", ".."))
 PROJECT_ROOT = os.path.abspath(os.path.join(BACKEND_DIR, ".."))
 
+import threading
+
 _embedder: Optional[Embedder] = None
+_embedder_lock = threading.Lock()
 
 def _get_embedder() -> Embedder:
     global _embedder
     if _embedder is None:
-        _embedder = Embedder()
+        with _embedder_lock:
+            if _embedder is None:
+                _embedder = Embedder()
     return _embedder
 
 
