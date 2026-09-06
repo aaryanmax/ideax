@@ -196,11 +196,11 @@ export default function DetailPanel({
 
         {activeAnalysis ? (
           activeAnalysis.spotrep ? (
-            <div className="tour-spotrep mt-4 p-3 bg-zinc-950 border border-emerald-900/60 rounded shadow-inner">
+            <div className="tour-spotrep mt-4 p-3 bg-zinc-950 border border-emerald-900/60 rounded shadow-inner overflow-x-auto">
               <div className="text-[10px] text-emerald-500 font-bold uppercase mb-1.5 tracking-wider">
                 Generated SPOTREP (DGIS-Standard)
               </div>
-              <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap font-medium text-emerald-400">
+              <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-all font-medium text-emerald-400">
                 {activeAnalysis.spotrep}
                 {activeAnalysis.gate_evaluation?.scl_evidence?.t2 && `\nQUALITY MASK    : ${activeAnalysis.gate_evaluation.scl_evidence.t2.suppression_reason || 'CLEAR'} (T2 ${(activeAnalysis.gate_evaluation.scl_evidence.t2.flagged_fraction * 100).toFixed(0)}% flagged @ ${activeAnalysis.gate_evaluation.scl_evidence.t2.resolution_used} SCL)`}
               </pre>

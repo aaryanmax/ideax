@@ -45,6 +45,8 @@ class ChangeRequest(BaseModel):
     width: int = 512
     height: int = 512
     force: bool = False
+    resolution: Optional[str] = "10m"
+    patch_id: Optional[str] = None
 
 class ChangeResponse(BaseModel):
     status: str

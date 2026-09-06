@@ -84,13 +84,35 @@ python run_server.py
 # Server initializes at http://127.0.0.1:8000
 ```
 
-### 3. Frontend Initialization
+### 3. Pre-Flight Full Smoke Test (Pre-Demo Safety Check)
+Run this safety check before presentations or demos to verify venv, CUDA/GPU, PyTorch, models, and test live natural search queries:
+```powershell
+cd backend
+python smoke_test.py
+# Or non-interactive CI mode:
+python smoke_test.py --non-interactive
+# Or specific query test:
+python smoke_test.py --query "military runway" --dataset delhi
+```
+
+### 4. Frontend Initialization
 ```powershell
 cd ..\frontend
 npm install
 npm run dev
 # Dashboard available at http://localhost:5173
 ```
+
+---
+
+## 📚 Documentation & Technical Specifications
+
+Comprehensive technical, operational, and evaluator resources are available in the [`docs/`](docs/) directory:
+
+- 📑 **[Executive Project Overview & Investor Report](docs/project_overview.md)**: Exhaustive investor and evaluator memorandum covering the 6 core pillars of SIH PS-227, market problem, architecture, benchmarks, and ROI.
+- 🎯 **[Investor & Evaluator Pitch Deck Outline](docs/pitch_deck_outline.md)**: 10-slide high-impact presentation structure and speaker scripts tailored for SIH 2026 juries and MoD reviewers.
+- 🛡️ **[DGIS Operational & Technical Compliance Spec](docs/dgis_compliance.md)**: Detailed compliance matrix for Directorate General of Information Systems (DGIS) and C4I integration.
+- 🏗️ **[System Architecture & Implementation Spec](docs/architecture_spec.md)**: Engineering guide, 2026 LTS dependency matrix, and API contracts.
 
 ---
 

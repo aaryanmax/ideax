@@ -280,7 +280,7 @@ export const useSearchStore = create((set, get) => ({
         }
       }
 
-      const analysis = await analyzeChange(colOff, rowOff, true, get().resolution);
+      const analysis = await analyzeChange(colOff, rowOff, true, get().resolution, selected.tile_id);
       set({ activeAnalysis: analysis });
     } catch (err) {
       console.warn("Live analyze API unavailable, applying cached tactical classification:", err);

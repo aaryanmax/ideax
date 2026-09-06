@@ -21,7 +21,7 @@ export async function searchTiles(query, topK = 6, dataset = "all") {
 /**
  * Run bitemporal change detection & tactical classification on a selected patch
  */
-export async function analyzeChange(colOff = 4500, rowOff = 4500, force = true, resolution = "10m") {
+export async function analyzeChange(colOff = 4500, rowOff = 4500, force = true, resolution = "10m", patchId = null) {
   try {
     const res = await fetch(`${API_BASE}/analyze/change`, {
       method: "POST",
@@ -33,6 +33,7 @@ export async function analyzeChange(colOff = 4500, rowOff = 4500, force = true, 
         height: 512,
         force: force,
         resolution: resolution,
+        patch_id: patchId,
       }),
     });
     if (!res.ok) throw new Error(`Change analysis failed: ${res.statusText}`);

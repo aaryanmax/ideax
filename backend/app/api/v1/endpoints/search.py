@@ -78,14 +78,33 @@ def search_text(request: SearchRequest):
 @router.post("/similar", response_model=DiscoveryResponse)
 def search_similar(request: SimilarSearchRequest):
     try:
-        dataset_name = request.dataset if hasattr(request, 'dataset') and request.dataset else "mumbai"
-        search_engine = engine_manager.get_engine(dataset_name)
+        # Dynamically find the dataset that contains this patch_id
+        search_engine = None
+        dataset_name = None
         
+        # Fast lookup
+        for name, engine in engine_manager.engines.items():
+            if request.patch_id in engine.metadata:
+                search_engine = engine
+                dataset_name = name
+                break
+                
+        # Deep lookup in case of unstructured metadata
         if not search_engine:
-            if engine_manager.engines:
-                dataset_name, search_engine = next(iter(engine_manager.engines.items()))
-            else:
-                raise ValueError("No search engine available.")
+            for name, engine in engine_manager.engines.items():
+                if isinstance(engine.metadata, dict):
+                    if any(v.get("patch_id") == request.patch_id for v in engine.metadata.values()):
+                        search_engine = engine
+                        dataset_name = name
+                        break
+                elif isinstance(engine.metadata, list):
+                    if any(v.get("patch_id") == request.patch_id for v in engine.metadata):
+                        search_engine = engine
+                        dataset_name = name
+                        break
+
+        if not search_engine:
+            raise ValueError(f"Patch ID {request.patch_id} not found in any available datasets.")
             
         features = search_engine.find_similar_by_patch_id(
             patch_id=request.patch_id, 

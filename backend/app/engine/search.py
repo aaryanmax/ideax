@@ -146,15 +146,24 @@ class SemanticSearchEngine:
         """
         Retrieves top_k similar patches excluding the source itself.
         """
-        # Defensive lookup: matches patch_id to dict values
+        idx = None
+        # Defensive lookup: explicitly grab faiss_id from metadata
         if isinstance(self.metadata, dict):
-            idx = next((i for i, item in enumerate(self.metadata.values()) if item.get("patch_id") == patch_id), None)
+            record = self.metadata.get(patch_id)
+            if not record:
+                record = next((item for item in self.metadata.values() if item.get("patch_id") == patch_id), None)
+            
+            if record and "faiss_id" in record:
+                idx = int(record["faiss_id"])
         else:
-            idx = next((i for i, item in enumerate(self.metadata) if item.get("patch_id") == patch_id), None)
+            record = next((item for item in self.metadata if item.get("patch_id") == patch_id), None)
+            if record and "faiss_id" in record:
+                idx = int(record["faiss_id"])
             
         if idx is None:
-            # Fallback to string split if metadata lookup fails
+            # Fallback to string split if faiss_id is missing
             try:
+                # E.g., for patch_0, patch_1 format
                 idx = int(patch_id.split("_")[-1])
             except ValueError:
                 return []

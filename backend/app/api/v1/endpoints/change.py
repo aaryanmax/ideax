@@ -44,6 +44,35 @@ class ChangeRequest(BaseModel):
 @router.post("/change")
 @router.post("")
 def analyze_change(request: ChangeRequest):
+    t1_path = os.path.join(PROJECT_ROOT, "data", "processed", "T43RFM_20260217T054121_TCI_10m.jp2")
+    t2_path = os.path.join(PROJECT_ROOT, "data", "processed", "T43RFM_20260831T052641_TCI_10m.jp2")
+    patch_id = getattr(request, "patch_id", None)
+    
+    if patch_id:
+        from app.api.v1.endpoints.search import engine_manager
+        import glob
+        dataset_name = None
+        for name, engine in engine_manager.engines.items():
+            if isinstance(engine.metadata, dict):
+                if patch_id in engine.metadata or any(v.get("patch_id") == patch_id for v in engine.metadata.values()):
+                    dataset_name = name
+                    break
+                    
+        if dataset_name and dataset_name.lower() != "delhi":
+            raw_dir = os.path.join(PROJECT_ROOT, "data", "raw")
+            matched_folders = [f for f in os.listdir(raw_dir) if f.lower() == dataset_name.lower()]
+            if matched_folders:
+                state_dir = os.path.join(raw_dir, matched_folders[0])
+                t1_files = glob.glob(os.path.join(state_dir, "**", "*T1*", "**", "*TCI_10m.jp2"), recursive=True)
+                t2_files = glob.glob(os.path.join(state_dir, "**", "*T2*", "**", "*TCI_10m.jp2"), recursive=True)
+                if not t1_files:
+                    t1_files = glob.glob(os.path.join(state_dir, "**", "*T1*.jp2"), recursive=True)
+                if not t2_files:
+                    t2_files = glob.glob(os.path.join(state_dir, "**", "*T2*.jp2"), recursive=True)
+                    
+                if t1_files: t1_path = t1_files[0]
+                if t2_files: t2_path = t2_files[0]
+
     if not os.path.exists(t1_path) or not os.path.exists(t2_path):
         raise HTTPException(status_code=500, detail="T1 or T2 JP2 files not found in data/processed/")
 
@@ -196,11 +225,35 @@ def analyze_change(request: ChangeRequest):
             elif any(k in cls_label.lower() for k in ["bunker", "convoy", "cleared", "trench", "berm", "road"]):
                 action = "IMMEDIATE_TASK_UAV_RECON"
 
+            scl_metrics = "CLEAR"
+            if scl_result_t2:
+                pct = round(scl_result_t2.get("flagged_fraction", 0) * 100, 1)
+                dominated = scl_result_t2.get("suppression_reason") or "CLEAR"
+                scl_metrics = f"{pct}% FLAGS ({dominated})"
+            
+            import time
+            dist_str = " | ".join([f"{k[:10]}: {v*100:.1f}%" for k, v in classification_result.get("distribution", {}).items()][:3])
+            
             spotrep = (
-                f"ACQUISITION DTG : 2026-08-31 05:26:41 UTC\n"
+                f"====================================================\n"
+                f" TACTICAL SPOTREP (DGIS-STANDARD) - AUTOMATED ANALYSIS \n"
+                f"====================================================\n"
+                f"DTG             : {time.strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
                 f"COORDINATES     : {centroid_lat:.6f} N, {centroid_lon:.6f} E\n"
-                f"CLASSIFICATION  : {cls_label.upper()} ({conf:.1f}% confidence)\n"
-                f"RECOMMEND ACTION: {action}"
+                f"----------------------------------------------------\n"
+                f"STEP 1: SCL QUALITY GATE\n"
+                f"        T2 SCENE    : {scl_metrics}\n"
+                f"STEP 2: SFAS SEMANTIC GATE\n"
+                f"        COS DIST    : {cos_dist:.4f} (τ = 0.15)\n"
+                f"        GATE STATUS : {'CONFIRMED CHANGE' if is_change else 'SUPPRESSED'}\n"
+                f"STEP 3: PIXEL DIFFERENCING\n"
+                f"        CONTOURS    : {len(features)} DETECTED (MIN_AREA=50px)\n"
+                f"STEP 4: ZERO-SHOT TACTICAL CLASSIFICATION\n"
+                f"        TOP MATCH   : {cls_label.upper()} ({conf:.1f}% CONFIDENCE)\n"
+                f"        DISTRIBUTION: {dist_str}\n"
+                f"----------------------------------------------------\n"
+                f"RECOMMEND ACTION: {action}\n"
+                f"===================================================="
             )
             processing_log.append({
                 "step": 7, "name": "SPOTREP Generation",
