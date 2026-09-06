@@ -6,12 +6,16 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Forwards /api/* to Y's FastAPI backend during dev so the browser
-      // never needs to know the backend's host/port.
+      // Forwards /api/* to FastAPI backend
       "/api": {
         target: "http://127.0.0.1:8000",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
+      },
+      // Forwards /static/* to FastAPI backend static directories
+      "/static": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
       },
     },
   },

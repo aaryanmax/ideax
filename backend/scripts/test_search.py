@@ -26,8 +26,8 @@ def main():
         print(f"[ERROR] JP2 file not found at: {jp2_path}")
         sys.exit(1)
         
-    index_path = os.path.join(PROJECT_ROOT, "data", "processed", "test_delhi.index")
-    metadata_path = os.path.join(PROJECT_ROOT, "data", "processed", "test_metadata.json")
+    index_path = os.path.join(PROJECT_ROOT, "data", "processed", "delhi.index")
+    metadata_path = os.path.join(PROJECT_ROOT, "data", "processed", "delhi_metadata.json")
     
     print("[*] Initializing Foundation Model Embedder...")
     embedder = Embedder()

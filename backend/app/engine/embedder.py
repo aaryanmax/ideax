@@ -40,8 +40,16 @@ class Embedder:
         if not os.path.exists(onnx_path):
             raise FileNotFoundError(f"ONNX text model not found at {onnx_path}")
             
-        self.text_session = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
-        
+        self.text_session = None
+        if os.path.exists(onnx_path):
+            opts = ort.SessionOptions()
+            opts.intra_op_num_threads = 1
+            opts.inter_op_num_threads = 1
+            self.text_session = ort.InferenceSession(
+                onnx_path, 
+                providers=["CPUExecutionProvider"],
+                sess_options=opts
+            )        
     def embed_text(self, text: str) -> np.ndarray:
         """Embeds text into a vector using the ONNX CPU runtime."""
         inputs = self.processor(text=[text], return_tensors="np", padding=True, truncation=True)

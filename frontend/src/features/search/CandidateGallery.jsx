@@ -2,8 +2,8 @@ import { swatchColor, verdictFor, VERDICT_STYLE } from "../../lib/format.js";
 
 export default function CandidateGallery({ results, total, activeCandidateId, onSelect, threshold }) {
   return (
-    <div className="tour-gallery">
-      <div className="mb-3 flex items-center justify-between">
+    <div>
+      <div className="tour-gallery mb-3 flex items-center justify-between rounded p-1 -m-1">
         <h2 className="font-cond text-sm font-semibold tracking-wide text-ink">Ranked candidates</h2>
         <span className="font-mono text-[10px] text-faint">
           {results.length} of {total}
@@ -81,9 +81,9 @@ export default function CandidateGallery({ results, total, activeCandidateId, on
               </p>
               <div className="mt-1.5 flex items-center justify-between font-mono text-[10px] text-faint">
                 <span>
-                  {r.metadata.latitude.toFixed(3)}, {r.metadata.longitude.toFixed(3)}
+                  {r.metadata?.latitude?.toFixed(3) ?? "0.000"}, {r.metadata?.longitude?.toFixed(3) ?? "0.000"}
                 </span>
-                <span>{r.score.toFixed(2)}</span>
+                <span>{r.score?.toFixed(2) ?? "0.00"}</span>
               </div>
             </button>
           );

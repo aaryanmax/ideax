@@ -135,3 +135,95 @@ def get_audit_log(
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         session.close()
+
+
+@router.get("/export")
+def export_provenance(
+    status: Optional[str] = Query(None, description="Filter by status (APPROVED, REJECTED, PENDING)"),
+    limit: int = Query(200, ge=1, le=1000)
+):
+    """
+    Export analyst decisions as a GeoJSON FeatureCollection with full provenance.
+    Each feature includes source scene, processing hash, analyst rationale,
+    confidence, sensor and acquisition metadata — satisfying PS §2.2.5.
+    """
+    from fastapi.responses import Response
+
+    session = Session()
+    try:
+        query = session.query(AuditRecord)
+        if status:
+            query = query.filter(AuditRecord.status == status.strip().upper())
+        records = query.order_by(AuditRecord.timestamp.desc()).limit(limit).all()
+
+        features = []
+        for rec in records:
+            lat = rec.latitude or 0.0
+            lon = rec.longitude or 0.0
+            # Point geometry for the committed location
+            geometry = {"type": "Point", "coordinates": [lon, lat]}
+
+            # Parse any extra metadata stored as JSON string
+            extra = {}
+            if rec.extra_metadata:
+                try:
+                    extra = json.loads(rec.extra_metadata)
+                except Exception:
+                    extra = {}
+
+            reviewed_str = None
+            if rec.reviewed_at:
+                try:
+                    reviewed_str = rec.reviewed_at.isoformat() + "Z"
+                except Exception:
+                    reviewed_str = str(rec.reviewed_at)
+
+            timestamp_str = None
+            if rec.timestamp:
+                try:
+                    timestamp_str = rec.timestamp.isoformat() + "Z"
+                except Exception:
+                    timestamp_str = str(rec.timestamp)
+
+            properties = {
+                "patch_id": rec.patch_id,
+                "status": rec.status,
+                "confidence_score": rec.confidence_score,
+                "analyst_id": rec.analyst_id,
+                "analyst_rationale": rec.analyst_rationale,
+                "sensor_type": rec.sensor_type or "Sentinel-2 L2A",
+                "query_string": rec.query_string,
+                "hash_value": rec.hash_value,
+                "timestamp": timestamp_str,
+                "reviewed_at": reviewed_str,
+                "processing_provenance": {
+                    "engine": "CLIP ViT-L/14 + FAISS HNSW",
+                    "scl_masking": "Sentinel-2 SCL band (20m)",
+                    "false_alarm_gate": "SFAS cosine gate (τ=0.15)",
+                    "classifier": "Zero-shot tactical CLIP (τ=0.07)",
+                    "record_id": rec.id,
+                    **extra
+                }
+            }
+            features.append({"type": "Feature", "geometry": geometry, "properties": properties})
+
+        geojson = {
+            "type": "FeatureCollection",
+            "name": "IDEAX_Provenance_Export",
+            "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "total_records": len(features),
+            "features": features
+        }
+
+        payload = json.dumps(geojson, indent=2)
+        return Response(
+            content=payload,
+            media_type="application/geo+json",
+            headers={"Content-Disposition": "attachment; filename=\"ideax_provenance.geojson\""}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        session.close()
+

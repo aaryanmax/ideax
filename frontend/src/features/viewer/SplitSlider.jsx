@@ -24,27 +24,30 @@ export default function SplitSlider({ candidate, before, after }) {
             : `http://localhost:8000${activeCandidate.thumbnail_url}`)
         : `http://localhost:8000/static/tiles/thumbnails/${tileId}_t2.png`);
 
+  const t1Date = activeCandidate.t1_date || activeCandidate.metadata?.t1_date || "T1";
+  const t2Date = activeCandidate.t2_date || activeCandidate.metadata?.t2_date || activeCandidate.metadata?.acquisition_date || "T2";
+
   return (
     <div className="tour-viewer relative w-full h-64 bg-zinc-950 rounded border border-zinc-800 overflow-hidden select-none">
-      {/* T2 (After / Aug 2026) Background */}
+      {/* T2 (After) Background */}
       <img
         src={t2Url}
-        alt="Post-Monsoon (Aug 2026)"
-        className="absolute inset-0 w-full h-full object-cover"
+        alt={`T2 (${t2Date})`}
+        className="absolute inset-0 w-full h-full object-cover whitespace-nowrap"
       />
-      <span className="absolute bottom-2 right-2 z-10 px-2 py-0.5 text-[10px] font-mono bg-black/70 text-emerald-400 rounded">
-        T2: 2026-08-31
+      <span className="absolute bottom-2 right-2 z-10 px-2 py-0.5 text-[10px] font-mono bg-black/70 text-emerald-400 rounded border border-emerald-500/30">
+        T2: {t2Date}
       </span>
 
-      {/* T1 (Before / Feb 2026) Clipped Layer */}
+      {/* T1 (Before) Clipped Layer */}
       <img
         src={t1Url}
-        alt="Dry Season Baseline (Feb 2026)"
-        className="absolute inset-0 w-full h-full object-cover"
+        alt={`T1 (${t1Date})`}
+        className="absolute inset-0 w-full h-full object-cover whitespace-nowrap"
         style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)`, willChange: 'clip-path' }}
       />
-      <span className="absolute bottom-2 left-2 z-10 px-2 py-0.5 text-[10px] font-mono bg-black/70 text-amber-400 rounded">
-        T1: 2026-02-17
+      <span className="absolute bottom-2 left-2 z-10 px-2 py-0.5 text-[10px] font-mono bg-black/70 text-amber-400 rounded border border-amber-500/30">
+        T1: {t1Date}
       </span>
 
       {/* Interactive Divider Line */}

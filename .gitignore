@@ -26,7 +26,12 @@ ENV/
 data/raw/*
 data/processed/*
 data/indices/*
+data/map_tiles/*
 !data/**/.gitkeep
+
+# Cached Map Tiles & Static Caches
+frontend/public/map_tiles/
+
 
 # Node / Frontend
 node_modules/

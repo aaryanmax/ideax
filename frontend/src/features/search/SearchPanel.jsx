@@ -1,9 +1,16 @@
 import { Search, Satellite } from "lucide-react";
 import { useRef, useEffect } from "react";
 
+const SAMPLE_PROMPTS = [
+  { label: "Urban Settlements", query: "dense urban settlement or buildings" },
+  { label: "Crop Fields", query: "seasonal crop fields or agricultural land" },
+  { label: "Water / Riverbed", query: "water body or riverbed" },
+];
+
 export default function SearchPanel({
   query,
   onQueryChange,
+  onApplyPrompt,
   minConfidence,
   onMinConfidenceChange,
   sensors,
@@ -11,6 +18,7 @@ export default function SearchPanel({
   onSensorFilterChange,
   datasetFilter,
   onDatasetFilterChange,
+  availableDatasets = [],
 }) {
   const textareaRef = useRef(null);
 
@@ -21,8 +29,16 @@ export default function SearchPanel({
     }
   }, [query]);
 
+  const handlePromptSelect = (promptText) => {
+    if (onApplyPrompt) {
+      onApplyPrompt(promptText);
+    } else {
+      onQueryChange(promptText);
+    }
+  };
+
   return (
-    <aside className="tour-search border-b border-border p-4 space-y-6 lg:border-b-0 lg:border-r">
+    <aside className="border-b border-border p-4 space-y-6 lg:border-b-0 lg:border-r">
       <div>
         <label className="font-cond text-xs font-semibold tracking-wide text-muted">Dataset / Region</label>
         <div className="mt-2">
@@ -31,17 +47,21 @@ export default function SearchPanel({
             onChange={(e) => onDatasetFilterChange(e.target.value)}
             className="w-full rounded-sm border border-border bg-panel px-2.5 py-2 font-mono text-xs text-ink outline-none transition-colors hover:border-borderHover focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50"
           >
-            <option value="none">Auto (Map View)</option>
-            <option value="all">All India</option>
-            <option value="delhi">Delhi, NCR</option>
-            <option value="mumbai">Mumbai, MH</option>
+            {availableDatasets.map((ds) => (
+              <option key={ds.value} value={ds.value}>
+                {ds.label}
+              </option>
+            ))}
           </select>
         </div>
       </div>
 
-      <div>
-        <label className="font-cond text-xs font-semibold tracking-wide text-muted">Query</label>
-        <div className="mt-2 flex items-center gap-2 rounded-sm border border-border bg-panel px-2.5 py-2">
+      <div className="tour-search rounded p-1 -m-1 transition-colors">
+        <div className="flex items-center justify-between">
+          <label className="font-cond text-xs font-semibold tracking-wide text-muted">Tactical Query Prompt</label>
+          <span className="font-mono text-[9px] text-emerald-400/80 uppercase tracking-wider">Semantic Retr</span>
+        </div>
+        <div className="mt-2 flex items-center gap-2 rounded-sm border border-border bg-panel px-2.5 py-2 focus-within:border-emerald-500/60 focus-within:ring-1 focus-within:ring-emerald-500/40">
           <Search size={14} className="shrink-0 text-muted" />
           <textarea
             ref={textareaRef}
@@ -51,13 +71,26 @@ export default function SearchPanel({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
+                handlePromptSelect(query);
               }
             }}
-            placeholder="describe the change, e.g. new structure near tree line"
-            className="w-full bg-transparent text-sm text-ink placeholder:text-faint outline-none resize-none overflow-hidden leading-relaxed"
+            placeholder="describe the change, e.g. dense urban settlement"
+            className="w-full bg-transparent text-sm text-ink placeholder:text-faint outline-none resize-none overflow-hidden leading-relaxed font-mono"
           />
         </div>
-        <p className="mt-1.5 font-mono text-[10px] text-faint">natural language or paste a tile_id</p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {SAMPLE_PROMPTS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => handlePromptSelect(p.query)}
+              className="rounded border border-border/70 bg-panelAlt px-1.5 py-0.5 font-mono text-[9px] text-muted hover:border-emerald-500/60 hover:text-emerald-300 hover:bg-emerald-950/30 transition-all cursor-pointer"
+            >
+              + {p.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1.5 font-mono text-[10px] text-faint">natural language prompt or paste a tile_id</p>
       </div>
 
       <div>

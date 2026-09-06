@@ -1,10 +1,24 @@
-import { useEffect, useState, useRef } from "react";
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { MapContainer, TileLayer, Marker, GeoJSON, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Maximize2, Minimize2, MapPin, AlertTriangle, X, Crosshair, CheckCircle2 } from "lucide-react";
+import { 
+  Maximize2, 
+  Minimize2, 
+  MapPin, 
+  AlertTriangle, 
+  X, 
+  Crosshair, 
+  CheckCircle2, 
+  ShieldCheck, 
+  Globe,
+  Layers
+} from "lucide-react";
 import { verdictFor, VERDICT_STYLE } from "../../lib/format.js";
 import { triggerHaptic } from "../../lib/haptics.js";
+import { useSearchStore } from "../../store/useSearchStore.js";
+import TacticalCanvasGridLayer from "./TacticalCanvasGridLayer.jsx";
+import tacticalGeoJson from "../../data/delhi_ncr_tactical_boundaries.json";
 
 /**
  * Validate whether coordinates fall within indexed tactical surveillance coverage
@@ -71,7 +85,7 @@ function MapInterface({
       lastFlownCoordsRef.current = coordsKey;
       setIsUserPanned(false);
       setRejection(null);
-      map.flyTo(activeLocation, Math.max(map.getZoom(), 13), { 
+      map.flyTo(activeLocation, Math.max(map.getZoom(), 12), { 
         animate: true,
         duration: 1.0 
       });
@@ -124,14 +138,14 @@ function MapInterface({
     if (activeLocation) {
       setIsUserPanned(false);
       setRejection(null);
-      map.flyTo(activeLocation, Math.max(map.getZoom(), 13), { animate: true, duration: 0.8 });
+      map.flyTo(activeLocation, Math.max(map.getZoom(), 12), { animate: true, duration: 0.8 });
     }
   };
 
   return (
     <>
       {/* Rejection Alert: Map stays here and displays why */}
-      {rejection && (
+      {isExpanded && rejection && (
         <div className="absolute top-2 left-2 right-2 sm:left-1/2 sm:-translate-x-1/2 sm:w-[340px] z-[400] flex flex-col gap-1 p-2 bg-zinc-950/95 border border-rose-500/70 text-rose-200 rounded shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-200">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-rose-400 uppercase font-mono">
@@ -153,20 +167,20 @@ function MapInterface({
       )}
 
       {/* Manual Pan Actions: Fetch Here & Re-center */}
-      {isUserPanned && !rejection && (
+      {isExpanded && isUserPanned && !rejection && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[400] flex items-center gap-1.5">
           <button 
             onClick={handleFetchHere}
-            className="flex items-center gap-1.5 bg-zinc-900/95 hover:bg-zinc-800 text-zinc-100 px-3 py-1.5 rounded-full shadow-xl border border-emerald-500/60 hover:border-emerald-400 text-xs font-mono font-medium tracking-wider transition-all hover:scale-105 active:scale-95"
+            className="h-7 px-2.5 flex items-center gap-1.5 bg-zinc-900/95 hover:bg-zinc-800 text-zinc-100 rounded-full shadow-lg border border-emerald-500/60 hover:border-emerald-400 text-[11px] font-mono font-medium tracking-wider whitespace-nowrap transition-all hover:scale-105 active:scale-95"
             title="Scan currently visible map area"
           >
-            <MapPin size={13} className="text-emerald-400 shrink-0" />
-            <span>FETCH HERE</span>
+            <MapPin size={12} className="text-emerald-400 shrink-0" />
+            <span className="leading-none">FETCH HERE</span>
           </button>
           {activeLocation && (
             <button
               onClick={handleRecenter}
-              className="flex items-center gap-1 bg-zinc-900/95 hover:bg-zinc-800 text-zinc-300 hover:text-white px-2 py-1.5 rounded-full shadow-xl border border-zinc-700 text-xs font-mono tracking-wider transition-all hover:scale-105 active:scale-95"
+              className="h-7 w-7 flex items-center justify-center bg-zinc-900/95 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-full shadow-lg border border-zinc-700/80 hover:border-amber-400/60 transition-all hover:scale-105 active:scale-95 shrink-0"
               title="Re-center on active target"
             >
               <Crosshair size={13} className="text-amber-400 shrink-0" />
@@ -176,7 +190,7 @@ function MapInterface({
       )}
 
       {/* Success Status Indicator */}
-      {successInfo && (
+      {isExpanded && successInfo && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[400] flex items-center gap-1.5 px-3 py-1 bg-emerald-950/95 border border-emerald-500/60 text-emerald-300 rounded-full text-xs font-mono shadow-xl backdrop-blur-md">
           <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
           <span>{successInfo}</span>
@@ -201,6 +215,8 @@ export default function TacticalMap({
   onFetchReject,
   onFetchSuccess
 }) {
+  const { mapMode, vectorLayers, showTooltips } = useSearchStore();
+
   const activeCandidate = candidates.find(c => c.tile_id === activeCandidateId);
   const activeLocation = activeCandidate 
     ? [activeCandidate.metadata.latitude, activeCandidate.metadata.longitude]
@@ -208,28 +224,95 @@ export default function TacticalMap({
 
   const initialCenter = activeLocation || [28.536, 76.457];
 
+  // Filter GeoJSON features (no complex logic, just pass it through)
+  const filteredGeoJson = tacticalGeoJson;
+
+  // Plain styling for the real map outline
+  const getFeatureStyle = (feature) => {
+    return {
+      color: "#10b981", // Emerald green for the real map outline
+      weight: 1.5,
+      opacity: 0.8,
+      fillColor: "transparent"
+    };
+  };
+
+  const onEachFeature = (feature, layer) => {
+    if (!showTooltips) return;
+    
+    const p = feature.properties || {};
+    const name = p.name || "Tactical Feature";
+    const code = p.code || "";
+    const desc = p.description || "";
+
+    layer.bindTooltip(
+      `<div class="font-mono text-[10px] p-1 bg-zinc-950/95 text-zinc-200 border border-zinc-700 rounded shadow-xl">
+        <div class="font-bold text-emerald-400">${name}</div>
+        ${code ? `<div class="text-[8px] text-zinc-400 uppercase">${code}</div>` : ""}
+        ${desc ? `<div class="text-[8px] text-zinc-400 mt-0.5 max-w-[200px]">${desc}</div>` : ""}
+      </div>`,
+      { sticky: true, className: "tactical-tooltip" }
+    );
+  };
+
   return (
     <div className={`flex flex-col relative ${className}`} style={style}>
       {!hideHeader && (
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-cond text-sm font-semibold tracking-wide text-ink">Tactical Map View</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-cond text-sm font-semibold tracking-wide text-ink">Tactical Map View</h2>
+            <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${
+              mapMode === "airgapped"
+                ? "bg-emerald-950/80 border-emerald-500/50 text-emerald-300"
+                : "bg-blue-950/80 border-blue-500/50 text-blue-300"
+            }`}>
+              {mapMode === "airgapped" ? "● AIR-GAPPED VECTOR" : "● WAN ONLINE"}
+            </span>
+          </div>
           <span className="font-mono text-[10px] text-faint">
             {candidates.length} of {total}
           </span>
         </div>
       )}
+
       <div className="flex-1 rounded-sm border border-border overflow-hidden relative z-0" style={{ height: "100%", minHeight: "100px" }}>
+        {/* Air-Gapped Mode Status Pill inside the map view */}
+        <div className="absolute bottom-2 left-2 z-[400] flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-950/90 border border-zinc-800 shadow-md backdrop-blur-md font-mono text-[9px] pointer-events-none select-none">
+          <span className={`h-1.5 w-1.5 rounded-full ${mapMode === "airgapped" ? "bg-emerald-400 animate-pulse" : "bg-blue-400"}`} />
+          <span className={mapMode === "airgapped" ? "text-emerald-300 font-bold" : "text-blue-300 font-bold"}>
+            {mapMode === "airgapped" ? "AIR-GAPPED VECTOR MAP" : "CARTO STREAMING"}
+          </span>
+        </div>
+
         <MapContainer 
+          key={`${isExpanded ? 'map-expanded' : 'map-mini'}-${mapMode}`}
           center={initialCenter} 
-          zoom={13} 
+          zoom={12} 
           zoomControl={isExpanded} 
           attributionControl={false} 
           style={{ height: "100%", width: "100%", zIndex: 0 }}
         >
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_2wrn_1_e49a6d427e83ef6163d8f9e4"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          />
+          {/* Basemap Tier: Offline Tactical Canvas or Online CartoDB */}
+          {mapMode === "online" ? (
+            <TileLayer
+              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_2wrn_1_e49a6d427e83ef6163d8f9e4"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            />
+          ) : (
+            <TacticalCanvasGridLayer showGrid={vectorLayers?.grid ?? true} />
+          )}
+
+          {/* Bundled Local GeoJSON Tactical Vector Features */}
+          {filteredGeoJson && (
+            <GeoJSON
+              key={`vector-${JSON.stringify(vectorLayers)}-${showTooltips}`}
+              data={filteredGeoJson}
+              style={getFeatureStyle}
+              onEachFeature={onEachFeature}
+            />
+          )}
+
+          {/* Candidate Target Markers */}
           {candidates.map(candidate => {
             const isActive = candidate.tile_id === activeCandidateId;
             const cv = VERDICT_STYLE[verdictFor(candidate.score, threshold)];
@@ -282,6 +365,7 @@ export default function TacticalMap({
               />
             );
           })}
+
           <MapInterface 
             activeLocation={activeLocation} 
             activeCandidateId={activeCandidateId}

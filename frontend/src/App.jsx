@@ -4,7 +4,7 @@ import SearchPanel from "./features/search/SearchPanel.jsx";
 import CandidateGallery from "./features/search/CandidateGallery.jsx";
 import CommitLog from "./features/workflow/CommitLog.jsx";
 import DetailPanel from "./features/viewer/DetailPanel.jsx";
-import { X } from "lucide-react";
+import { X, Check, AlertTriangle } from "lucide-react";
 import { triggerHaptic } from "./lib/haptics.js";
 import FieldManualTour from "./features/workflow/FieldManualTour.jsx";
 import { useSearchStore } from "./store/useSearchStore.js";
@@ -25,6 +25,7 @@ export default function App() {
 
   useEffect(() => {
     store.fetchAuditLog();
+    store.fetchDatasets();
   }, []);
 
   useEffect(() => {
@@ -98,6 +99,7 @@ export default function App() {
         <SearchPanel
           query={store.query}
           onQueryChange={store.setQuery}
+          onApplyPrompt={store.applyPrompt}
           minConfidence={store.minConfidence}
           onMinConfidenceChange={store.setMinConfidence}
           sensors={sensors}
@@ -105,49 +107,58 @@ export default function App() {
           onSensorFilterChange={store.setSensorFilter}
           datasetFilter={store.datasetFilter}
           onDatasetFilterChange={store.setDatasetFilter}
+          availableDatasets={store.availableDatasets}
         />
 
         <main className="p-4 flex flex-col min-w-0">
           {store.tacticalAlert && (
-            <div className={`mb-4 flex items-center justify-between rounded border px-4 py-3 shadow-[0_0_15px_rgba(0,0,0,0.2)] ${
+            <div className={`mb-4 flex items-start justify-between gap-3 rounded border px-4 py-3 shadow-[0_0_15px_rgba(0,0,0,0.2)] backdrop-blur-md transition-all ${
               store.tacticalAlert.type === 'error'
                 ? 'border-rose-500/60 bg-rose-950/50 text-rose-300'
                 : 'border-emerald-500/60 bg-emerald-950/50 text-emerald-300'
             }`}>
-              <div className="flex items-center gap-3">
-                <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-                  store.tacticalAlert.type === 'error' ? 'bg-rose-900/80 text-rose-300' : 'bg-emerald-900/80 text-emerald-300'
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full mt-0.5 border ${
+                  store.tacticalAlert.type === 'error' 
+                    ? 'bg-rose-500/20 border-rose-500/40 text-rose-400' 
+                    : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
                 }`}>
-                  {store.tacticalAlert.type === 'error' ? '!' : '✓'}
+                  {store.tacticalAlert.type === 'error' ? (
+                    <AlertTriangle size={13} className="shrink-0" />
+                  ) : (
+                    <Check size={13} className="shrink-0 stroke-[2.5]" />
+                  )}
                 </div>
-                <p className="font-mono text-xs font-medium tracking-wide">
+                <p className="font-mono text-xs font-medium tracking-wide leading-relaxed break-words">
                   {store.tacticalAlert.message}
                 </p>
               </div>
               <button 
                 onClick={() => store.setTacticalAlert(null)}
-                className="text-zinc-400 hover:text-zinc-100"
+                className="text-zinc-400 hover:text-zinc-100 p-0.5 rounded hover:bg-zinc-800/50 transition-colors shrink-0 self-start mt-0.5"
+                title="Dismiss"
               >
-                <X size={16} />
+                <X size={15} />
               </button>
             </div>
           )}
 
           {store.discoverySummary && (
-            <div className="mb-4 flex items-center justify-between rounded border border-emerald-500/50 bg-emerald-950/40 px-4 py-3 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-              <div className="flex items-center gap-3">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-900/80 text-emerald-400">
-                  <span className="text-sm font-bold">✓</span>
+            <div className="mb-4 flex items-start justify-between gap-3 rounded border border-emerald-500/50 bg-emerald-950/40 px-4 py-3 shadow-[0_0_15px_rgba(16,185,129,0.1)] backdrop-blur-md transition-all">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full mt-0.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400">
+                  <Check size={13} className="shrink-0 stroke-[2.5]" />
                 </div>
-                <p className="font-mono text-xs font-medium tracking-wide text-emerald-300">
+                <p className="font-mono text-xs font-medium tracking-wide text-emerald-300 leading-relaxed break-words">
                   {store.discoverySummary}
                 </p>
               </div>
               <button 
                 onClick={() => store.setDiscoverySummary(null)}
-                className="text-emerald-500/70 hover:text-emerald-400"
+                className="text-emerald-500/70 hover:text-emerald-300 p-0.5 rounded hover:bg-emerald-900/40 transition-colors shrink-0 self-start mt-0.5"
+                title="Dismiss"
               >
-                <X size={16} />
+                <X size={15} />
               </button>
             </div>
           )}

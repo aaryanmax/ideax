@@ -16,37 +16,26 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", "..", ".."))
 PROJECT_ROOT = os.path.abspath(os.path.join(BACKEND_DIR, ".."))
 
-# Load both Delhi and Mumbai datasets
-delhi_index_path = os.path.join(PROJECT_ROOT, "data", "processed", "test_delhi.index")
-delhi_metadata_path = os.path.join(PROJECT_ROOT, "data", "processed", "test_metadata.json")
-
-mumbai_index_path = os.path.join(PROJECT_ROOT, "data", "processed", "satellite_tiles.index")
-mumbai_metadata_path = os.path.join(PROJECT_ROOT, "data", "processed", "mumbai_metadata.json")
-
 embedder = Embedder()
 
-print("[*] Initializing SemanticSearchEngines for Unified Search...")
-delhi_engine = None
-if os.path.exists(delhi_index_path) and os.path.exists(delhi_metadata_path):
-    idx_delhi = VectorIndexManager(dim=768)
-    idx_delhi.load(delhi_index_path)
-    delhi_engine = SemanticSearchEngine(embedder, idx_delhi, delhi_metadata_path)
-
-mumbai_engine = None
-if os.path.exists(mumbai_index_path) and os.path.exists(mumbai_metadata_path):
-    idx_mumbai = VectorIndexManager(dim=768)
-    idx_mumbai.load(mumbai_index_path)
-    mumbai_engine = SemanticSearchEngine(embedder, idx_mumbai, mumbai_metadata_path)
-
-# Fallback alias for endpoints that use `search_engine` directly (e.g. similar search)
-search_engine = mumbai_engine if mumbai_engine else delhi_engine
+print("[*] Initializing SearchEngineManager for Unified Search...")
+from app.engine.search import SearchEngineManager
+engine_manager = SearchEngineManager(embedder)
 
 from typing import Optional
 
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 5
-    dataset: Optional[str] = "all"  # "all", "delhi", "mumbai"
+    dataset: Optional[str] = "all"
+
+@router.get("/datasets")
+def get_datasets():
+    datasets = list(engine_manager.engines.keys())
+    options = [{"value": "none", "label": "Auto (Map View)"}, {"value": "all", "label": "All Datasets"}]
+    for ds in datasets:
+        options.append({"value": ds, "label": ds.replace("_", " ").title()})
+    return {"datasets": options}
 
 @router.post("/text")
 def search_text(request: SearchRequest):
@@ -55,26 +44,25 @@ def search_text(request: SearchRequest):
         if dataset_filter in ["all", "none", "auto"]:
             dataset_filter = "all"
         
-        if dataset_filter == "all" and delhi_engine and mumbai_engine:
-            res_delhi = delhi_engine.search_by_text(request.query, top_k=request.top_k)
-            res_mumbai = mumbai_engine.search_by_text(request.query, top_k=request.top_k)
-            # Interleave equally
-            combined_results = []
-            for i in range(max(len(res_delhi), len(res_mumbai))):
-                if i < len(res_delhi):
-                    combined_results.append(res_delhi[i])
-                if i < len(res_mumbai):
-                    combined_results.append(res_mumbai[i])
-            top_results = combined_results[:request.top_k]
+        combined_results = []
+        
+        if dataset_filter == "all":
+            all_results = []
+            for name, engine in engine_manager.engines.items():
+                all_results.append(engine.search_by_text(request.query, top_k=request.top_k))
+            
+            max_len = max([len(res) for res in all_results]) if all_results else 0
+            for i in range(max_len):
+                for res in all_results:
+                    if i < len(res):
+                        combined_results.append(res[i])
         else:
-            combined_results = []
-            if delhi_engine and dataset_filter in ["all", "delhi"]:
-                combined_results.extend(delhi_engine.search_by_text(request.query, top_k=request.top_k))
-            if mumbai_engine and dataset_filter in ["all", "mumbai"]:
-                combined_results.extend(mumbai_engine.search_by_text(request.query, top_k=request.top_k))
+            engine = engine_manager.get_engine(dataset_filter)
+            if engine:
+                combined_results.extend(engine.search_by_text(request.query, top_k=request.top_k))
                 
-            combined_results.sort(key=lambda x: x["properties"]["similarity_score"])
-            top_results = combined_results[:request.top_k]
+        combined_results.sort(key=lambda x: x["properties"]["similarity_score"], reverse=True)
+        top_results = combined_results[:request.top_k]
         
         return {
             "type": "FeatureCollection",
@@ -83,18 +71,27 @@ def search_text(request: SearchRequest):
     except Exception as e:
         import traceback
         traceback.print_exc()
+        with open("search_error.log", "w") as f:
+            f.write(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/similar", response_model=DiscoveryResponse)
 def search_similar(request: SimilarSearchRequest):
     try:
-        # Get raw similarity features
+        dataset_name = request.dataset if hasattr(request, 'dataset') and request.dataset else "mumbai"
+        search_engine = engine_manager.get_engine(dataset_name)
+        
+        if not search_engine:
+            if engine_manager.engines:
+                dataset_name, search_engine = next(iter(engine_manager.engines.items()))
+            else:
+                raise ValueError("No search engine available.")
+            
         features = search_engine.find_similar_by_patch_id(
             patch_id=request.patch_id, 
             top_k=request.top_k
         )
         
-        # Optionally cluster them
         clusters = []
         if request.cluster_results and features:
             cluster_data = cluster_geospatial_features(
@@ -105,9 +102,9 @@ def search_similar(request: SimilarSearchRequest):
             features = cluster_data["features"]
             clusters = cluster_data["clusters"]
             
-        # Formulate tactical summary
         named_clusters = sum(1 for c in clusters if c["cluster_id"] != -1)
-        summary = f"DISCOVERY SWEEP COMPLETE: Identified {len(features)} semantically aligned sites matching baseline signature '{request.patch_id}'. Grouped into {named_clusters} operational activity clusters across Delhi AOR."
+        aor = dataset_name.replace("_", " ").title()
+        summary = f"DISCOVERY SWEEP COMPLETE: Identified {len(features)} semantically aligned sites matching baseline signature '{request.patch_id}'. Grouped into {named_clusters} operational activity clusters across {aor} AOR."
         
         return DiscoveryResponse(
             source_patch_id=request.patch_id,

@@ -10,3 +10,24 @@ body,
 body {
   @apply bg-base text-ink font-sans antialiased;
 }
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-borderHover rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted;
+}

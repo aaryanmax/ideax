@@ -90,4 +90,11 @@ cd ..\frontend
 npm install
 npm run dev
 # Dashboard available at http://localhost:5173
-```
+```
+
+---
+
+## 📝 Future Work & TODOs
+
+- **Multi-Temporal Sweep (`/analyze/sweep`)**: Implement an endpoint that iterates over all available scenes in `data/raw` to estimate the "earliest observation of change", rather than relying on hardcoded T1/T2 pairs.
+

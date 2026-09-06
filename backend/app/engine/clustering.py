@@ -100,7 +100,23 @@ def cluster_geospatial_features(features: List[Dict], eps_km: float = 15.0, min_
         return {"features": features, "clusters": []}
     
     # Extract coordinates in radians [latitude, longitude]
-    coords_rad = np.radians([[f['properties']['center'][0], f['properties']['center'][1]] for f in features])
+    valid_indices = []
+    coords = []
+    for i, f in enumerate(features):
+        c = f.get('properties', {}).get('center')
+        if c and len(c) >= 2:
+            coords.append([c[0], c[1]])
+            valid_indices.append(i)
+        else:
+            if 'properties' not in f:
+                f['properties'] = {}
+            f['properties']['cluster_id'] = -1
+            f['properties']['cluster_callsign'] = "ISOLATED SITE"
+            
+    if not coords:
+        return {"features": features, "clusters": []}
+        
+    coords_rad = np.radians(coords)
     
     db = DBSCAN(eps=eps_km / 6371.0088, min_samples=min_samples, metric='haversine')
     labels = db.fit_predict(coords_rad)
@@ -108,8 +124,10 @@ def cluster_geospatial_features(features: List[Dict], eps_km: float = 15.0, min_
     NATO_ALPHABET = ["ALPHA", "BRAVO", "CHARLIE", "DELTA", "ECHO", "FOXTROT", "GOLF", "HOTEL"]
     clusters_info = {}
     
-    for i, feature in enumerate(features):
-        cid = int(labels[i])
+    for idx, label in enumerate(labels):
+        i = valid_indices[idx]
+        feature = features[i]
+        cid = int(label)
         
         callsign = f"{NATO_ALPHABET[cid]} CLUSTER" if 0 <= cid < len(NATO_ALPHABET) else f"CLUSTER_{cid}"
         if cid == -1:

@@ -21,7 +21,7 @@ export async function searchTiles(query, topK = 6, dataset = "all") {
 /**
  * Run bitemporal change detection & tactical classification on a selected patch
  */
-export async function analyzeChange(colOff = 4500, rowOff = 4500, force = true) {
+export async function analyzeChange(colOff = 4500, rowOff = 4500, force = true, resolution = "10m") {
   try {
     const res = await fetch(`${API_BASE}/analyze/change`, {
       method: "POST",
@@ -32,6 +32,7 @@ export async function analyzeChange(colOff = 4500, rowOff = 4500, force = true) 
         width: 512,
         height: 512,
         force: force,
+        resolution: resolution,
       }),
     });
     if (!res.ok) throw new Error(`Change analysis failed: ${res.statusText}`);
@@ -102,3 +103,42 @@ export async function findSimilarSites(patchId, topK = 6, cluster = true) {
     throw err;
   }
 }
+
+/**
+ * Export analyst decisions as a GeoJSON FeatureCollection with full provenance
+ */
+export async function exportProvenance() {
+  try {
+    const res = await fetch(`${API_BASE}/audit/export`);
+    if (!res.ok) throw new Error(`Export failed: ${res.statusText}`);
+    
+    // Trigger download
+    const blob = await res.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = "ideax_provenance.geojson";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  } catch (err) {
+    console.error("API error during exportProvenance:", err);
+    throw err;
+  }
+}
+
+/**
+ * Retrieve available datasets dynamically from the backend
+ */
+export async function getDatasets() {
+  try {
+    const res = await fetch(`${API_BASE}/search/datasets`);
+    if (!res.ok) throw new Error(`Fetch datasets failed: ${res.statusText}`);
+    return await res.json();
+  } catch (err) {
+    console.error("API error during getDatasets:", err);
+    throw err;
+  }
+}
+

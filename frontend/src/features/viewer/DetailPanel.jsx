@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { Check, ShieldAlert, ShieldCheck, X, Loader2 } from "lucide-react";
+import { Check, ShieldAlert, ShieldCheck, X, Loader2, Info } from "lucide-react";
 import SplitSlider from "./SplitSlider.jsx";
 import { verdictFor, VERDICT_STYLE } from "../../lib/format.js";
 import { commitTarget } from "../../lib/api.js";
 import { triggerHaptic } from "../../lib/haptics.js";
 import TacticalMap from "./TacticalMap.jsx";
+import PipelineInspector from "./PipelineInspector.jsx";
+import { useSearchStore } from "../../store/useSearchStore.js";
 
 export default function DetailPanel({
   selected,
@@ -25,6 +27,9 @@ export default function DetailPanel({
 }) {
   const [isCommitting, setIsCommitting] = useState(false);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
+  
+  const resolution = useSearchStore((s) => s.resolution);
+  const setResolution = useSearchStore((s) => s.setResolution);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -116,6 +121,35 @@ export default function DetailPanel({
           )}
         </div>
 
+        <div className="flex bg-zinc-900/50 p-1 rounded-sm border border-border">
+          {["10m", "20m", "60m"].map((res) => (
+            <button
+              key={res}
+              onClick={() => setResolution(res)}
+              className={`flex-1 text-center font-mono text-[10px] py-1.5 rounded transition-colors ${resolution === res ? "bg-zinc-800 text-emerald-400 font-bold shadow-sm" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"}`}
+            >
+              {res === "10m" ? "10M TACTICAL" : res === "20m" ? "20M SCL" : "60M REGIONAL"}
+            </button>
+          ))}
+        </div>
+
+        {activeAnalysis?.gate_evaluation?.scl_evidence?.t2?.recommendation && (
+          <div 
+            className="flex items-start gap-2 bg-indigo-950/30 border border-indigo-500/30 p-2 rounded cursor-pointer hover:bg-indigo-900/30 transition-colors"
+            onClick={() => {
+              const rec = activeAnalysis.gate_evaluation.scl_evidence.t2.recommendation;
+              if (rec.includes("20m") && resolution !== "20m") setResolution("20m");
+              else if (rec.includes("60m") && resolution !== "60m") setResolution("60m");
+              else if (rec.includes("10m") && resolution !== "10m") setResolution("10m");
+            }}
+          >
+            <Info size={12} className="text-indigo-400 mt-0.5 shrink-0" />
+            <p className="text-[10px] text-indigo-200/90 leading-relaxed font-mono">
+              {activeAnalysis.gate_evaluation.scl_evidence.t2.recommendation}
+            </p>
+          </div>
+        )}
+
         <SplitSlider candidate={selected} before={before?.metadata} after={selected.metadata} />
 
         {/* Tactical Mini-map Context */}
@@ -135,9 +169,6 @@ export default function DetailPanel({
             onFetchReject={onFetchReject}
             onFetchSuccess={onFetchSuccess}
           />
-          <div className="absolute top-1 left-1 px-1 text-[9px] font-mono text-zinc-400 uppercase tracking-widest z-[400] pointer-events-none drop-shadow-md bg-black/40 rounded">
-            Sector {selected.tile_id.split('_')[1] || '01'}
-          </div>
         </div>
 
         <dl className="grid grid-cols-2 gap-y-2 font-mono text-[10px]">
@@ -171,6 +202,7 @@ export default function DetailPanel({
               </div>
               <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap font-medium text-emerald-400">
                 {activeAnalysis.spotrep}
+                {activeAnalysis.gate_evaluation?.scl_evidence?.t2 && `\nQUALITY MASK    : ${activeAnalysis.gate_evaluation.scl_evidence.t2.suppression_reason || 'CLEAR'} (T2 ${(activeAnalysis.gate_evaluation.scl_evidence.t2.flagged_fraction * 100).toFixed(0)}% flagged @ ${activeAnalysis.gate_evaluation.scl_evidence.t2.resolution_used} SCL)`}
               </pre>
             </div>
           ) : (
@@ -188,6 +220,13 @@ export default function DetailPanel({
               <div className="h-2 w-2/3 bg-zinc-800/40 rounded"></div>
             </div>
           </div>
+        )}
+
+        {activeAnalysis && (
+          <PipelineInspector
+            processingLog={activeAnalysis?.processing_log}
+            rawAnalysis={activeAnalysis}
+          />
         )}
 
         <div className="flex gap-2 pt-1">

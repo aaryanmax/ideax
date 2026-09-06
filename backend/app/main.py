@@ -15,11 +15,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Resolve path to data directory and mount static file serving for tiles
+# Resolve path to data directory and mount static file serving for tiles and map tiles
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATA_DIR = os.path.join(BASE_DIR, "data", "processed")
 os.makedirs(DATA_DIR, exist_ok=True)
 app.mount("/static/tiles", StaticFiles(directory=DATA_DIR), name="tiles")
+
+MAP_TILES_DIR = os.path.join(BASE_DIR, "data", "map_tiles")
+os.makedirs(MAP_TILES_DIR, exist_ok=True)
+app.mount("/static/map_tiles", StaticFiles(directory=MAP_TILES_DIR), name="map_tiles")
 
 app.include_router(v1_router, prefix="/api/v1")
 

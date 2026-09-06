@@ -49,6 +49,17 @@ class TacticalClassifier:
         # Ensure patch_embedding is a 1D array
         patch_embedding = patch_embedding.flatten()
         
+        # Handle dimension mismatch (e.g. text is 768 but patch is 512)
+        text_dim = self.text_embeddings.shape[1]
+        if patch_embedding.shape[0] != text_dim:
+            if patch_embedding.shape[0] > text_dim:
+                patch_embedding = patch_embedding[:text_dim]
+            else:
+                patch_embedding = np.pad(patch_embedding, (0, text_dim - patch_embedding.shape[0]))
+            norm = np.linalg.norm(patch_embedding)
+            if norm > 0:
+                patch_embedding = patch_embedding / norm
+                
         # Calculate cosine similarities.
         # Since text_embeddings and patch_embedding are normalized L2 vectors, 
         # their dot product is equivalent to cosine similarity.
